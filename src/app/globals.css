@@ -1,26 +1,55 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --primary-color: #1ba6f7;
+  --secondary-color: #f8c100;
+  --white-color: #fff;
+  --gray-color: #707070;
+  --black-color: #000;
+
+  --heading-font: var(--font-playfair-display), "Playfair Display", serif;
+  --text-font: var(--font-quicksand), "Quicksand", sans-serif;
+
+  --background: var(--white-color);
+  --foreground: var(--black-color);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --background: #000;
+  --foreground: #fff;
+  --gray-color: #707070;
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-primary: var(--primary-color);
+  --color-secondary: var(--secondary-color);
+  --color-white: var(--white-color);
+  --color-gray: var(--gray-color);
+  --color-black: var(--black-color);
+
+  --font-heading: var(--heading-font);
+  --font-text: var(--text-font);
+  --font-sans: var(--text-font);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--text-font);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--heading-font);
 }
