@@ -17,7 +17,7 @@ function getServerSnapshot() {
   return null;
 }
 
-export default function ThemeToggle() {
+export default function ThemeToggle({ className = "" }) {
   const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   function toggle() {
@@ -35,8 +35,8 @@ export default function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-label="Toggle light and dark mode"
-      title="Toggle light and dark mode"
-      className="fixed right-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-gray/40 bg-background text-foreground shadow-sm hover:border-primary hover:text-primary"
+      title="Toggle theme"
+      className={`flex h-8 w-8 items-center justify-center rounded-[10px] border border-line text-dim transition-colors hover:border-line-strong hover:text-text ${className}`}
     >
       {theme === "dark" ? <SunIcon /> : <MoonIcon />}
       <span className="sr-only">

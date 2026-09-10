@@ -48,9 +48,13 @@ export async function getCurrentUser() {
     : [];
   const permissions = [...new Set(roleDocs.flatMap((r) => r.permissions || []))];
 
+  const onboarding = user.onboarding || { stepsCompleted: [], completedAt: null };
+
+  // Fields are plain, JSON-safe values (no ObjectId / Date). `can()` is a
+  // convenience method for SERVER code only — never pass this object straight to
+  // a Client Component; use `plainUser()` for that.
   return {
     id: String(user._id),
-    _id: user._id,
     name: user.name || session.user.name || "",
     email: user.email,
     image: user.image || session.user.image || null,
@@ -61,9 +65,14 @@ export async function getCurrentUser() {
     skills: user.skills || [],
     settings: user.settings || {},
     assignedVersion: user.assignedVersion || null,
-    onboarding: user.onboarding || { stepsCompleted: [], completedAt: null },
-    invitedBy: user.invitedBy || null,
-    createdAt: user.createdAt || user._id.getTimestamp(),
+    onboarding: {
+      stepsCompleted: onboarding.stepsCompleted || [],
+      completedAt: onboarding.completedAt
+        ? new Date(onboarding.completedAt).toISOString()
+        : null,
+    },
+    invitedBy: user.invitedBy ? String(user.invitedBy) : null,
+    createdAt: new Date(user.createdAt || user._id.getTimestamp()).toISOString(),
     roles: roleDocs.map((r) => ({
       id: String(r._id),
       key: r.key,
@@ -77,6 +86,13 @@ export async function getCurrentUser() {
       return grants(permissions, key);
     },
   };
+}
+
+/** Strip the `can()` method → a fully serializable object for Client Components. */
+export function plainUser(user) {
+  if (!user) return null;
+  const { can, ...rest } = user;
+  return rest;
 }
 
 /** Redirect to sign-in if unauthenticated; bounce non-active accounts. */

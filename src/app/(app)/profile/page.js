@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/access";
+import { requireUser, plainUser } from "@/lib/access";
 import { listSessions } from "@/lib/data";
 import { getCurrentSessionToken } from "@/lib/session-tracking";
 import { Card, Badge } from "@/components/ui";
@@ -25,7 +25,7 @@ export default async function ProfilePage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Personal information" description="Skill tags help managers assign work.">
-          <MyProfileForm me={me} />
+          <MyProfileForm me={plainUser(me)} />
         </Card>
 
         <div className="flex flex-col gap-6">

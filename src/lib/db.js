@@ -17,6 +17,8 @@ export async function collections() {
     versions: db.collection("releaseVersions"),
     auditLogs: db.collection("auditLogs"),
     settings: db.collection("settings"),
+    projects: db.collection("projects"),
+    tasks: db.collection("tasks"),
   };
 }
 
@@ -52,6 +54,16 @@ export async function ensureDbReady() {
       c.versions.createIndex({ version: 1 }, { unique: true }),
       c.auditLogs.createIndex({ createdAt: -1 }),
       c.auditLogs.createIndex({ targetType: 1, targetId: 1 }),
+      c.projects.createIndex({ status: 1 }),
+      c.projects.createIndex({ divisions: 1 }),
+      c.projects.createIndex({ name: 1 }),
+      c.tasks.createIndex({ projectId: 1 }),
+      c.tasks.createIndex({ status: 1 }),
+      c.tasks.createIndex({ division: 1 }),
+      c.tasks.createIndex({ assigneeId: 1 }),
+      c.tasks.createIndex({ collaboratorIds: 1 }),
+      c.tasks.createIndex({ endDate: 1 }),
+      c.tasks.createIndex({ "approval.state": 1 }),
     ]);
 
     const now = new Date();

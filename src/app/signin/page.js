@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth, signIn, WORKSPACE_DOMAIN } from "@/auth";
+import { Logo } from "@/components/logo";
 
 export const metadata = {
   title: "Sign in · Finessse",
@@ -12,16 +13,17 @@ export default async function SignInPage({ searchParams }) {
   const { error } = await searchParams;
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-background text-foreground p-6">
-      <div className="w-full max-w-sm rounded-2xl border border-gray/25 bg-background p-8 shadow-sm">
-        <h1 className="text-2xl font-heading">Sign in to Finessse</h1>
-        <p className="mt-2 text-sm text-gray">
-          Use your <span className="font-semibold">@{WORKSPACE_DOMAIN}</span>{" "}
+    <div className="flex flex-1 items-center justify-center bg-bg p-6 text-text">
+      <div className="flex w-full max-w-sm flex-col items-center card p-8 text-center">
+        <Logo className="h-12 w-auto text-text" />
+        <p className="mt-4 max-w-[16rem] text-[13px] text-dim">
+          Sign in with your{" "}
+          <span className="font-semibold text-text">@{WORKSPACE_DOMAIN}</span>{" "}
           Google Workspace account.
         </p>
 
         {error && (
-          <p className="mt-4 rounded-lg border border-secondary/40 bg-secondary/10 px-3 py-2 text-sm">
+          <p className="mt-4 rounded-[10px] border border-[color-mix(in_srgb,var(--warn)_40%,transparent)] bg-warn-bg px-3 py-2 text-[13px] text-warn">
             That account can&apos;t access Finessse. Sign in with your{" "}
             {WORKSPACE_DOMAIN} account.
           </p>
@@ -32,11 +34,11 @@ export default async function SignInPage({ searchParams }) {
             "use server";
             await signIn("google", { redirectTo: "/" });
           }}
-          className="mt-6"
+          className="mt-6 w-full"
         >
           <button
             type="submit"
-            className="flex w-full items-center justify-center gap-3 rounded-lg bg-primary px-4 py-2.5 font-semibold text-white transition-opacity hover:opacity-90"
+            className="flex w-full items-center justify-center gap-3 rounded-[10px] bg-action px-4 py-2.5 text-[13px] font-semibold text-action-text transition-opacity hover:opacity-90"
           >
             <GoogleGlyph />
             Continue with Google

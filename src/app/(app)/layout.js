@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/access";
 import { touchSession } from "@/lib/session-tracking";
+import { taskStats } from "@/lib/pm-data";
 import { SidebarNav } from "@/components/sidebar-nav";
+import { Topbar } from "@/components/topbar";
+import { Avatar } from "@/components/ui";
+import { Icon } from "@/components/icons";
+import { Logo } from "@/components/logo";
+import ThemeToggle from "@/app/theme-toggle";
 import { signOut } from "@/auth";
 
 export default async function AppLayout({ children }) {
@@ -9,54 +15,93 @@ export default async function AppLayout({ children }) {
   await touchSession();
 
   const can = (k) => user.can(k);
+  const canTasks = can("task:read") || can("task:read:all");
+  const stats = canTasks ? await taskStats(user) : null;
 
   const groups = [
     {
-      label: "Workspace",
+      label: "Delivery",
       items: [
-        { href: "/dashboard", label: "Dashboard" },
-        can("assignee:read") && { href: "/team", label: "Assignees" },
-        (can("assignee:invite") || can("onboarding:manage")) && {
-          href: "/onboarding",
-          label: "Onboarding",
-        },
-        can("session:read") && { href: "/sessions", label: "Sessions & Versions" },
-        { href: "/profile", label: "My profile" },
+        { href: "/dashboard", label: "Pulse", icon: "pulse" },
+        canTasks && { href: "/tasks", label: "Board", icon: "board" },
+        canTasks && { href: "/timeline", label: "Timeline", icon: "timeline" },
+        canTasks && { href: "/heatmap", label: "Heatmap", icon: "heatmap" },
+        can("project:read") && { href: "/projects", label: "Projects", icon: "projects" },
       ].filter(Boolean),
     },
     {
-      label: "Administration",
+      label: "People",
       items: [
-        can("role:read") && { href: "/settings/roles", label: "Roles & Access" },
-        can("version:manage") && { href: "/settings/versions", label: "Release versions" },
-        can("onboarding:manage") && {
-          href: "/settings/onboarding",
-          label: "Onboarding steps",
+        can("assignee:read") && { href: "/team", label: "People", icon: "people" },
+        (can("assignee:invite") || can("onboarding:manage")) && {
+          href: "/onboarding",
+          label: "Onboarding",
+          icon: "campaigns",
         },
-        can("audit:read") && { href: "/audit", label: "Audit log" },
+        can("session:read") && { href: "/sessions", label: "Sessions", icon: "tools" },
+        { href: "/profile", label: "My profile", icon: "people" },
+      ].filter(Boolean),
+    },
+    {
+      label: "Admin",
+      items: [
+        can("analytics:read") && { href: "/reports", label: "Reports", icon: "reports" },
+        can("analytics:read") && { href: "/analytics", label: "Intelligence", icon: "intelligence" },
+        can("role:read") && { href: "/settings/roles", label: "Roles & Access", icon: "tools" },
+        can("version:manage") && { href: "/settings/versions", label: "Releases", icon: "reports" },
+        can("onboarding:manage") && { href: "/settings/onboarding", label: "Onboarding steps", icon: "campaigns" },
+        can("audit:read") && { href: "/audit", label: "Audit log", icon: "reports" },
       ].filter(Boolean),
     },
   ].filter((g) => g.items.length);
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 gap-6 p-4 md:p-6">
-      <aside className="hidden w-60 shrink-0 flex-col justify-between md:flex">
-        <div>
-          <Link href="/dashboard" className="mb-6 block px-3 text-xl font-heading">
-            Finessse
+    <div className="flex min-h-screen w-full">
+      <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col border-r border-line bg-bg md:flex">
+        <div className="flex flex-col gap-1 px-4 py-4">
+          <Link href="/dashboard" aria-label="Finessse Interactive — home">
+            <Logo className="h-10 w-auto text-text" />
           </Link>
+          {/* <span className="mono pl-0.5 text-[9px] uppercase tracking-[0.16em] text-faint">
+            Project Ops
+          </span> */}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-2.5 pb-4">
           <SidebarNav groups={groups} />
         </div>
-      </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="mb-6 flex items-center justify-between gap-4 border-b border-gray/20 pb-4">
-          <div className="md:hidden text-lg font-heading">Finessse</div>
-          <div className="ml-auto flex items-center gap-3 text-sm">
-            <span className="hidden text-gray sm:inline">{user.email}</span>
-            <span className="rounded-full bg-gray/15 px-2 py-0.5 text-xs font-semibold">
-              {user.roleKeys[0] || "no role"}
-            </span>
+        <div className="border-t border-line p-3">
+          {stats && stats.overdue > 0 && (
+            <Link
+              href="/tasks?overdue=1"
+              className="mb-3 flex items-center gap-2.5 rounded-[11px] border border-line bg-surface p-2.5 transition-colors hover:border-line-strong"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-warn-bg text-warn">
+                <Icon name="clock" size={15} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-semibold leading-tight text-warn">
+                  {stats.overdue} overdue
+                </span>
+                <span className="mono block text-[9px] uppercase tracking-[0.13em] text-faint">
+                  Needs attention
+                </span>
+              </span>
+            </Link>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Avatar name={user.name} email={user.email} src={user.image} size={30} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12.5px] font-semibold leading-tight">
+                {user.name || user.email}
+              </div>
+              <div className="mono truncate text-[9px] uppercase tracking-[0.13em] text-faint">
+                {user.roleKeys[0] || "no role"}
+              </div>
+            </div>
+            <ThemeToggle />
             <form
               action={async () => {
                 "use server";
@@ -65,15 +110,21 @@ export default async function AppLayout({ children }) {
             >
               <button
                 type="submit"
-                className="rounded-lg border border-gray/30 px-3 py-1.5 font-semibold hover:border-primary hover:text-primary"
+                title="Sign out"
+                className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-line text-dim transition-colors hover:border-line-strong hover:text-text"
               >
-                Sign out
+                <Icon name="logout" size={15} />
               </button>
             </form>
           </div>
-        </header>
+        </div>
+      </aside>
 
-        <main className="flex-1">{children}</main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar canCreateTask={can("task:create")} />
+        <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 md:px-8">
+          {children}
+        </main>
       </div>
     </div>
   );

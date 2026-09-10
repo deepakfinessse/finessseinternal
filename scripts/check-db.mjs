@@ -46,12 +46,31 @@ try {
     db.collection("sessions").createIndex({ userId: 1 }),
     db.collection("releaseVersions").createIndex({ version: 1 }, { unique: true }),
     db.collection("auditLogs").createIndex({ createdAt: -1 }),
+    db.collection("projects").createIndex({ status: 1 }),
+    db.collection("projects").createIndex({ divisions: 1 }),
+    db.collection("tasks").createIndex({ projectId: 1 }),
+    db.collection("tasks").createIndex({ status: 1 }),
+    db.collection("tasks").createIndex({ assigneeId: 1 }),
+    db.collection("tasks").createIndex({ endDate: 1 }),
   ]);
 
+  // Re-sync system roles to the catalog defaults. This is an explicit admin
+  // action (unlike the app's non-destructive boot seed), so it also refreshes
+  // permissions on roles that already exist.
   for (const role of SYSTEM_ROLES) {
     await roles.updateOne(
       { key: role.key },
-      { $setOnInsert: { ...role, createdAt: now, updatedAt: now } },
+      {
+        $set: {
+          name: role.name,
+          description: role.description,
+          permissions: role.permissions,
+          priority: role.priority,
+          isSystem: true,
+          updatedAt: now,
+        },
+        $setOnInsert: { key: role.key, createdAt: now },
+      },
       { upsert: true },
     );
   }
@@ -62,7 +81,7 @@ try {
   );
 
   console.log("\nSeeded. Current state:");
-  for (const name of ["users", "roles", "invitations", "sessions", "releaseVersions", "auditLogs"]) {
+  for (const name of ["users", "roles", "invitations", "sessions", "releaseVersions", "auditLogs", "projects", "tasks"]) {
     const n = await db.collection(name).countDocuments().catch(() => 0);
     console.log(`  ${name.padEnd(16)} ${n}`);
   }

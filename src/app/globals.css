@@ -3,6 +3,7 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 :root {
+  /* ---- brand (as configured) ---- */
   --primary-color: #1ba6f7;
   --secondary-color: #f8c100;
   --white-color: #fff;
@@ -11,45 +12,191 @@
 
   --heading-font: var(--font-playfair-display), "Playfair Display", serif;
   --text-font: var(--font-quicksand), "Quicksand", sans-serif;
+  --mono-font: var(--font-jetbrains-mono), ui-monospace, "SF Mono", "Menlo",
+    "Consolas", monospace;
 
-  --background: var(--white-color);
-  --foreground: var(--black-color);
+  /* ---- semantic surface / text / line — LIGHT ---- */
+  --bg: #f6f6f7;
+  --surface: #ffffff;
+  --surface-2: #f0f0f2;
+  --surface-3: #e7e7ea;
+  --line: rgba(15, 15, 20, 0.09);
+  --line-strong: rgba(15, 15, 20, 0.17);
+  --text: #17171b;
+  --text-dim: #5b5b66;
+  --text-faint: #8b8b96;
+
+  --accent: var(--primary-color);
+  --warn: #c05f3d; /* terracotta — overdue / critical / blocked */
+  --warn-bg: rgba(192, 95, 61, 0.12);
+  --ok: #2f9e6d;
+  --ok-bg: rgba(47, 158, 109, 0.12);
+  --caution: #b7791f;
+  --caution-bg: rgba(183, 121, 31, 0.14);
+
+  --action: #16161a; /* solid primary button */
+  --action-text: #ffffff;
+  --ring: color-mix(in srgb, var(--accent) 50%, transparent);
+
+  --radius-card: 16px;
+  --radius-ctl: 10px;
+  --shadow-card: 0 1px 2px rgba(10, 10, 20, 0.05),
+    0 10px 30px -14px rgba(10, 10, 20, 0.18);
+  --shadow-pop: 0 8px 40px -8px rgba(10, 10, 20, 0.25);
+
+  --background: var(--bg);
+  --foreground: var(--text);
   color-scheme: light;
 }
 
 [data-theme="dark"] {
-  --background: #000;
-  --foreground: #fff;
-  --gray-color: #707070;
+  --bg: #0a0a0b;
+  --surface: #131316;
+  --surface-2: #1a1a1d;
+  --surface-3: #232327;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --text: #ececee;
+  --text-dim: #9a9aa3;
+  --text-faint: #61616b;
+
+  --warn: #d5876a;
+  --warn-bg: rgba(213, 135, 106, 0.14);
+  --ok: #5fc99b;
+  --ok-bg: rgba(95, 201, 155, 0.13);
+  --caution: #d8a13f;
+  --caution-bg: rgba(216, 161, 63, 0.15);
+
+  --action: #f1f1f2; /* white button, reference-style */
+  --action-text: #17171b;
+
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02),
+    0 16px 40px -20px rgba(0, 0, 0, 0.7);
+  --shadow-pop: 0 12px 48px -8px rgba(0, 0, 0, 0.75);
+
+  --background: var(--bg);
+  --foreground: var(--text);
   color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-text: var(--text);
+  --color-dim: var(--text-dim);
+  --color-faint: var(--text-faint);
 
   --color-primary: var(--primary-color);
   --color-secondary: var(--secondary-color);
+  --color-accent: var(--accent);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-caution: var(--caution);
+  --color-caution-bg: var(--caution-bg);
+  --color-action: var(--action);
+  --color-action-text: var(--action-text);
+
+  /* legacy aliases kept so pre-existing utility classes keep working */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-gray: var(--text-dim);
   --color-white: var(--white-color);
-  --color-gray: var(--gray-color);
   --color-black: var(--black-color);
 
-  --font-heading: var(--heading-font);
+  --font-heading: var(--text-font);
   --font-text: var(--text-font);
   --font-sans: var(--text-font);
+  --font-mono: var(--mono-font);
+
+  --radius-card: 16px;
+  --radius-lg: 12px;
+}
+
+* {
+  border-color: var(--line);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--text-font);
+  font-feature-settings: "cv11", "ss01";
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: var(--heading-font);
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+code,
+kbd,
+samp,
+.mono {
+  font-family: var(--mono-font);
+  font-feature-settings: normal;
+}
+
+/* thin, unobtrusive scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+  background-clip: content-box;
+}
+
+/* utilities used across the app chrome */
+.eyebrow {
+  font-family: var(--mono-font);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.focusable:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+@keyframes fp-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-in {
+  animation: fp-fade-up 0.18s ease both;
 }
