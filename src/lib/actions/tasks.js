@@ -10,6 +10,7 @@ import { writeAudit } from "@/lib/audit";
 import {
   DIVISION_KEYS,
   PRIORITY_KEYS,
+  TASK_STATUSES,
   canForward,
   BLOCKER_KINDS,
 } from "@/lib/pm-constants";
@@ -515,6 +516,82 @@ export async function reopenTask(_prev, formData) {
   await writeAudit({ actorId: me.id, action: "task.reopen", targetType: "task", targetId: task._id, meta: {} });
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
   return { ok: true };
+}
+
+/**
+ * Move a task to a target column (drag & drop). Routes to the right lifecycle
+ * operation based on where it is and where it's going.
+ */
+export async function moveTask(_prev, formData) {
+  const id = String(formData.get("id") || "");
+  const to = String(formData.get("to") || "");
+  if (!TASK_STATUSES.includes(to)) return { ok: false, error: "Unknown column." };
+
+  const ctx = await loadActableTask(id);
+  if (ctx.error) return { ok: false, error: ctx.error };
+  const { me, task, tasks, privileged } = ctx;
+  const from = task.status;
+  const now = new Date();
+  if (from === to) return { ok: true };
+
+  const done = async (action, meta) => {
+    await writeAudit({ actorId: me.id, action, targetType: "task", targetId: task._id, meta: { ...meta, via: "board" } });
+    bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics", "/reports"]);
+    return { ok: true };
+  };
+
+  if (to === "blocked") {
+    return { ok: false, error: "Open the task to raise a blocker with a reason." };
+  }
+
+  if (from === "blocked") {
+    const back = task.statusBeforeBlock || "in_progress";
+    await tasks.updateOne(
+      { _id: task._id },
+      {
+        $set: { status: back, statusBeforeBlock: null, "blocker.active": false, "blocker.resolvedAt": now, updatedAt: now },
+        $push: { "blocker.log": { at: now, by: oid(me.id), note: "Blocker resolved from the board" } },
+      },
+    );
+    return done("task.blocker.resolve", { resumedAt: back });
+  }
+
+  if (to === "completed") {
+    if (!privileged) return { ok: false, error: "Only an approver can complete a task. Request approval from the task." };
+    await tasks.updateOne(
+      { _id: task._id },
+      {
+        $set: {
+          status: "completed", approval: "approved", approvedBy: oid(me.id),
+          approvedAt: now, completedAt: now, updatedAt: now,
+        },
+      },
+    );
+    return done("task.approve", { onTime: task.endDate ? now <= new Date(task.endDate) : true });
+  }
+
+  if (from === "completed") {
+    if (!privileged) return { ok: false, error: "Only an approver can reopen a completed task." };
+    const status = to === "in_review" ? "in_review" : to === "open" ? "open" : "in_progress";
+    await tasks.updateOne(
+      { _id: task._id },
+      { $set: { status, approval: "none", completedAt: null, updatedAt: now } },
+    );
+    return done("task.reopen", { to: status });
+  }
+
+  const NORMAL = {
+    open: ["in_progress"],
+    in_progress: ["open", "in_review"],
+    in_review: ["open", "in_progress"],
+  };
+  if (!(NORMAL[from] || []).includes(to)) {
+    return { ok: false, error: `Can't move from ${from} to ${to}.` };
+  }
+  const patch = { status: to, updatedAt: now };
+  if (to === "in_progress" || to === "open") patch.approval = "none";
+  await tasks.updateOne({ _id: task._id }, { $set: patch });
+  return done("task.transition", { from, to });
 }
 
 export async function deleteTask(_prev, formData) {

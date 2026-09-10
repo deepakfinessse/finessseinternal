@@ -33,11 +33,12 @@ export function serializeProject(p, taskCounts = {}) {
   };
 }
 
-export async function listProjects({ status, division, q } = {}) {
+export async function listProjects({ status, division, divisions, q } = {}) {
   const { projects, tasks, users } = await collections();
+  const divList = [...(divisions || []), ...(division ? [division] : [])].filter(Boolean);
   const query = {};
   if (status) query.status = status;
-  if (division) query.divisions = division;
+  if (divList.length) query.divisions = { $in: divList };
   if (q) query.$or = [
     { name: { $regex: q, $options: "i" } },
     { client: { $regex: q, $options: "i" } },
@@ -120,6 +121,16 @@ export async function listProjects({ status, division, q } = {}) {
         .map((u) => ({ id: String(u._id), name: u.name || "", email: u.email, image: u.image || null })),
     };
   });
+}
+
+/** Lightweight id + name list for filter menus. */
+export async function listProjectOptions() {
+  const { projects } = await collections();
+  const docs = await projects
+    .find({}, { projection: { name: 1 } })
+    .sort({ name: 1 })
+    .toArray();
+  return docs.map((p) => ({ id: String(p._id), name: p.name }));
 }
 
 export async function getProject(id) {
@@ -223,14 +234,33 @@ async function hydrateUsers(taskDocs) {
 
 export async function listTasks(user, filters = {}) {
   const { tasks, projects } = await collections();
-  const { projectId, division, status, assigneeId, approval, overdue, q } = filters;
+  const {
+    projectId, projectIds,
+    division, divisions,
+    status,
+    assigneeId, assigneeIds,
+    priorities,
+    approval, overdue, blocked, q,
+  } = filters;
+
+  const arr = (single, plural) =>
+    [...(plural || []), ...(single ? [single] : [])].filter(Boolean);
+  const oidList = (single, plural) =>
+    arr(single, plural)
+      .filter((v) => ObjectId.isValid(v))
+      .map((v) => new ObjectId(String(v)));
+  const projList = oidList(projectId, projectIds);
+  const divList = arr(division, divisions);
+  const asgList = oidList(assigneeId, assigneeIds);
 
   const query = { ...taskScopeFilter(user) };
-  if (projectId) query.projectId = oid(projectId);
-  if (division) query.division = division;
+  if (projList.length) query.projectId = { $in: projList };
+  if (divList.length) query.division = { $in: divList };
+  if (asgList.length) query.assigneeId = { $in: asgList };
+  if (priorities?.length) query.priority = { $in: priorities };
   if (status) query.status = status;
-  if (assigneeId) query.assigneeId = oid(assigneeId);
   if (approval) query.approval = approval;
+  if (blocked) query.status = "blocked";
   if (overdue) {
     query.status = { $ne: "completed" };
     query.endDate = { $lt: new Date() };

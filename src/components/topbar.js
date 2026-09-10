@@ -85,13 +85,13 @@ export function Topbar({ canCreateTask }) {
       </form>
 
       <div className="flex shrink-0 items-center gap-2">
-        <Link
+        {/* <Link
           href="/heatmap"
           title="Where deadlines pile up"
           className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-line text-dim transition-colors hover:border-line-strong hover:text-text"
         >
           <Icon name="filter" size={16} />
-        </Link>
+        </Link> */}
         {canCreateTask && (
           <Link
             href="/tasks/new"

@@ -48,7 +48,7 @@ export default async function DashboardPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         {canTasks && (
           <Card
-            title="My open tasks"
+            title="Open tasks"
             description="Soonest deadlines first."
             action={<LinkButton href="/tasks" variant="ghost">Board →</LinkButton>}
           >

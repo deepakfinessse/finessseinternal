@@ -1,10 +1,14 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { requirePermission } from "@/lib/access";
-import { listProjects } from "@/lib/pm-data";
-import { DIVISIONS, divisionLabel } from "@/lib/pm-constants";
+import { listProjects, listTasks, listProjectOptions } from "@/lib/pm-data";
+import { listUsers } from "@/lib/data";
+import { divisionLabel } from "@/lib/pm-constants";
+import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-filters";
 import { PageHeader, Card, EmptyState, AvatarStack, fmtDate } from "@/components/ui";
 import { DivisionDot, RingStat } from "@/components/pm-ui";
 import { Icon } from "@/components/icons";
+import { DeliveryFilters } from "@/components/delivery-filters";
 import { ProjectForm } from "./project-forms";
 
 export const metadata = { title: "Projects · Finessse" };
@@ -109,11 +113,40 @@ function ProjectCard({ p }) {
 export default async function ProjectsPage({ searchParams }) {
   const user = await requirePermission("project:read");
   const sp = await searchParams;
-  const division = DIVISIONS.some((d) => d.key === sp.division) ? sp.division : undefined;
-  const q = (sp.q || "").trim();
   const showForm = sp.new === "1" && user.can("project:create");
 
-  const projects = await listProjects({ division, q: q || undefined });
+  const cookieStore = await cookies();
+  const filters = resolveTaskFilters({
+    searchParams: sp,
+    cookieValue: cookieStore.get(FILTER_COOKIE)?.value,
+  });
+
+  // Task-oriented dimensions narrow the list to projects that *contain* a
+  // matching task; division / project / q are project-level.
+  const taskDims =
+    filters.assignee.length ||
+    filters.priority.length ||
+    filters.mine ||
+    filters.overdue ||
+    filters.blocked;
+
+  const [allProjects, matchTasks, projectOpts, people] = await Promise.all([
+    listProjects({ divisions: filters.division, q: filters.q || undefined }),
+    taskDims
+      ? listTasks(user, filterListArgs({ ...filters, division: [], project: [] }, user.id))
+      : null,
+    user.can("project:read") ? listProjectOptions() : [],
+    user.can("assignee:read") ? listUsers({ status: "active" }) : [],
+  ]);
+
+  let projects = allProjects;
+  if (filters.project.length) {
+    projects = projects.filter((p) => filters.project.includes(p.id));
+  }
+  if (matchTasks) {
+    const hit = new Set(matchTasks.map((t) => t.projectId));
+    projects = projects.filter((p) => hit.has(p.id));
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -139,40 +172,18 @@ export default async function ProjectsPage({ searchParams }) {
         </Card>
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Link
-          href="/projects"
-          className={`rounded-full px-2.5 py-1 text-[12px] font-medium transition-colors ${
-            !division ? "bg-surface-3 text-text" : "text-faint hover:text-text"
-          }`}
-        >
-          All divisions
-        </Link>
-        {DIVISIONS.map((d) => (
-          <Link
-            key={d.key}
-            href={`/projects?division=${d.key}`}
-            className={`rounded-full px-2.5 py-1 text-[12px] font-medium transition-colors ${
-              division === d.key ? "bg-surface-3 text-text" : "text-faint hover:text-text"
-            }`}
-          >
-            {d.label}
-          </Link>
-        ))}
-        <form method="get" className="ml-auto">
-          {division && <input type="hidden" name="division" value={division} />}
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="Search name or client…"
-            className="min-w-52 rounded-[10px] border border-line bg-surface px-3 py-1.5 text-[13px] outline-none placeholder:text-faint focus:border-line-strong"
-          />
-        </form>
-      </div>
+      <DeliveryFilters
+        value={filters}
+        projects={projectOpts}
+        people={people.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
+        canSeeAll={user.can("assignee:read")}
+        showSearch
+        searchPlaceholder="Search projects…"
+      />
 
       {projects.length === 0 ? (
         <EmptyState title="No projects">
-          {user.can("project:create") ? "Onboard one to get started." : "Nothing routed to you yet."}
+          {user.can("project:create") ? "Onboard one to get started." : "Nothing matches these filters."}
         </EmptyState>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">

@@ -1,9 +1,13 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/access";
-import { listTasks } from "@/lib/pm-data";
+import { listTasks, listProjectOptions } from "@/lib/pm-data";
+import { listUsers } from "@/lib/data";
 import { divisionLabel, nowMs } from "@/lib/pm-constants";
+import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-filters";
 import { PageHeader, EmptyState } from "@/components/ui";
+import { DeliveryFilters } from "@/components/delivery-filters";
 import { Icon } from "@/components/icons";
 import { divisionHsl } from "@/components/pm-ui";
 
@@ -53,11 +57,20 @@ export default async function TimelinePage({ searchParams }) {
 
   const by = GROUPINGS.some((g) => g.key === sp.by) ? sp.by : "person";
   const range = RANGES.includes(Number(sp.range)) ? Number(sp.range) : 60;
-  const overdue = sp.overdue === "1";
+  const canSeeAll = user.can("task:read:all") || user.can("*");
 
-  const tasks = (await listTasks(user, { overdue: overdue || undefined })).filter(
-    (t) => t.endDate || t.startDate,
-  );
+  const cookieStore = await cookies();
+  const filters = resolveTaskFilters({
+    searchParams: sp,
+    cookieValue: cookieStore.get(FILTER_COOKIE)?.value,
+  });
+
+  const [allTasks, projects, people] = await Promise.all([
+    listTasks(user, filterListArgs(filters, user.id)),
+    user.can("project:read") ? listProjectOptions() : [],
+    canSeeAll ? listUsers({ status: "active" }) : [],
+  ]);
+  const tasks = allTasks.filter((t) => t.endDate || t.startDate);
 
   const winStart = startOfDay(nowMs() - 5 * DAY);
   const winEnd = new Date(winStart.getTime() + range * DAY);
@@ -96,15 +109,26 @@ export default async function TimelinePage({ searchParams }) {
   };
 
   const seg = (patch) => {
-    const p = new URLSearchParams({ by, range: String(range) });
-    if (overdue) p.set("overdue", "1");
-    for (const [k, v] of Object.entries(patch)) v ? p.set(k, String(v)) : p.delete(k);
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) {
+      if (v != null && v !== "") p.set(k, Array.isArray(v) ? v[0] : String(v));
+    }
+    p.set("by", by);
+    p.set("range", String(range));
+    for (const [k, v] of Object.entries(patch)) (v ? p.set(k, String(v)) : p.delete(k));
     return `/timeline?${p.toString()}`;
   };
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader eyebrow="Delivery" title="Timeline" description="Scheduled work across the delivery window." />
+
+      <DeliveryFilters
+        value={filters}
+        projects={projects}
+        people={people.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
+        canSeeAll={canSeeAll}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
