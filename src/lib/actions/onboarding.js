@@ -76,7 +76,7 @@ export async function createInvitation(_prev, formData) {
     expiresAt,
   });
 
-  const link = `${await baseUrl()}/onboarding/${token}`;
+  const link = `${await baseUrl()}/join/${token}`;
   const mail = await sendMail({
     to: email,
     subject: "You're invited to Finessse",
@@ -123,7 +123,7 @@ export async function resendInvitation(_prev, formData) {
   await invitations.updateOne({ _id: invite._id }, { $set: { expiresAt } });
 
   const roleDocs = await roles.find({ _id: { $in: invite.roleIds || [] } }).toArray();
-  const link = `${await baseUrl()}/onboarding/${invite.token}`;
+  const link = `${await baseUrl()}/join/${invite.token}`;
   const mail = await sendMail({
     to: invite.email,
     subject: "Your Finessse invitation (reminder)",
