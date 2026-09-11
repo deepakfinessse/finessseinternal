@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 import { collections } from "./db";
 import { rolesById } from "./data";
-import { divisionLabel, isOverdue } from "./pm-constants";
+import { divisionLabel, isOverdue, overdueDays, PRIORITIES } from "./pm-constants";
 
 const oid = (id) => (id instanceof ObjectId ? id : new ObjectId(String(id)));
 const iso = (d) => (d ? new Date(d).toISOString() : null);
@@ -549,6 +549,46 @@ export async function deliverySla() {
   };
 }
 
+/**
+ * Cumulative time-in-system by division over the last 90 days — the "where the
+ * time actually goes" view. Active tasks count from creation to now; completed
+ * tasks count their full cycle time if they closed inside the window.
+ */
+export async function divisionLoad() {
+  const { tasks } = await collections();
+  const now = Date.now();
+  const since = now - 90 * DAY_MS;
+
+  const docs = await tasks
+    .find({}, { projection: { division: 1, status: 1, createdAt: 1, completedAt: 1, endDate: 1 } })
+    .toArray();
+
+  const byD = new Map();
+  for (const t of docs) {
+    const key = t.division || "unknown";
+    if (!byD.has(key)) byD.set(key, { division: key, total: 0, overdue: 0, late: 0, hours: 0 });
+    const row = byD.get(key);
+    row.total += 1;
+    const created = +new Date(t.createdAt || 0) || now;
+    if (t.status === "completed") {
+      const done = +new Date(t.completedAt || t.createdAt || now);
+      if (done >= since) row.hours += Math.max(0, (done - created) / 3600000);
+      if (t.endDate && done > +new Date(t.endDate)) row.late += 1;
+    } else {
+      row.hours += Math.max(0, (now - created) / 3600000);
+      if (t.endDate && +new Date(t.endDate) < now) {
+        row.overdue += 1;
+        row.late += 1;
+      }
+    }
+  }
+
+  return [...byD.values()]
+    .filter((r) => r.total > 0)
+    .map((r) => ({ ...r, label: divisionLabel(r.division), hours: Math.round(r.hours) }))
+    .sort((a, b) => b.hours - a.hours);
+}
+
 /** Per-assignee six-month completion scorecard with a monthly on-time trend. */
 export async function assigneeScorecard({ months = 6 } = {}) {
   const { tasks, users } = await collections();
@@ -651,79 +691,155 @@ export async function assigneeScorecard({ months = 6 } = {}) {
     .sort((x, y) => y.completed - x.completed || y.active - x.active);
 }
 
-/** Deterministic narrative summaries built from the SLA aggregates. */
-export async function generateBriefs() {
-  const [sla, monthly, matrix, scorecard] = await Promise.all([
-    deliverySla(),
-    slaReport({ months: 3 }),
-    statusHeatmap(),
-    assigneeScorecard({ months: 6 }),
-  ]);
+/* ---------------------------------------------------------- generated briefs */
 
-  const briefs = [];
-  const generatedAt = new Date().toISOString();
+const prioLabel = (k) => PRIORITIES.find((p) => p.key === k)?.label || null;
+const bullets = (arr) => arr.map((x) => ` · ${x}`).join("\n");
+const shortDate = (d) =>
+  new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 
-  briefs.push({
-    id: "delivery-health",
-    title: "Delivery health",
-    generatedAt,
-    body:
-      sla.total === 0
-        ? "No work has been completed yet, so there is no delivery record to report on."
-        : `The team has closed ${sla.total} task${sla.total === 1 ? "" : "s"} to date at a ${sla.onTimeRate}% on-time rate. ` +
-          `${sla.late} slipped past their due date, overrunning by ${sla.avgOverrunDays} day${sla.avgOverrunDays === 1 ? "" : "s"} on average. ` +
-          `Median cycle time from creation to completion is about ${sla.cycleTimeDays} day${sla.cycleTimeDays === 1 ? "" : "s"}, ` +
-          `and throughput is running near ${sla.weeklyThroughput} task${sla.weeklyThroughput === 1 ? "" : "s"} closed per week (4-week rolling average).`,
+/** Priority + overdue annotation, e.g. " (High, 29 days overdue)". */
+function annotate(t) {
+  const bits = [];
+  const p = prioLabel(t.priority);
+  if (p === "High" || p === "Critical") bits.push(p);
+  if (t.status !== "completed" && t.endDate && new Date(t.endDate) < new Date()) {
+    const d = overdueDays(t.endDate);
+    bits.push(`${d} day${d === 1 ? "" : "s"} overdue`);
+  }
+  return bits.length ? ` (${bits.join(", ")})` : "";
+}
+
+/**
+ * One stand-up per active assignee, composed from their live task state:
+ * MOVED (just completed) / TODAY (in flight) / BLOCKED / NEEDS A DECISION (overdue).
+ */
+export async function assigneeStandups() {
+  const { tasks, users } = await collections();
+  const now = new Date();
+  const movedSince = new Date(Date.now() - 3 * 86400000);
+  const today = shortDate(now);
+
+  const docs = await tasks.find({ assigneeId: { $ne: null } }).toArray();
+  const byA = new Map();
+  for (const t of docs) {
+    const k = String(t.assigneeId);
+    if (!byA.has(k)) byA.set(k, []);
+    byA.get(k).push(t);
+  }
+  const uDocs = byA.size
+    ? await users.find({ _id: { $in: [...byA.keys()].map(oid) } }).toArray()
+    : [];
+  const uMap = new Map(uDocs.map((u) => [String(u._id), u]));
+
+  const out = [];
+  for (const [id, list] of byA) {
+    const u = uMap.get(id);
+    if (!u || u.status !== "active") continue;
+    const name = u.name || u.email;
+
+    const moved = list
+      .filter((t) => t.status === "completed" && t.completedAt && new Date(t.completedAt) >= movedSince)
+      .map((t) => `${t.title} → Completed`);
+    const inFlight = list
+      .filter((t) => t.status === "in_progress" || t.status === "in_review")
+      .sort((a, b) => new Date(a.endDate || 8.64e15) - new Date(b.endDate || 8.64e15))
+      .map((t) => `${t.title}${annotate(t)}`);
+    const blocked = list
+      .filter((t) => t.status === "blocked")
+      .map(
+        (t) =>
+          `${t.title} — ${t.blocker?.kind === "client_side" ? "CLIENT" : "INTERNAL"}: ${t.blocker?.description || "no detail recorded"}`,
+      );
+    const decisions = list
+      .filter((t) => t.status !== "completed" && t.endDate && new Date(t.endDate) < now)
+      .sort((a, b) => new Date(a.endDate) - new Date(b.endDate))
+      .map((t) => `${t.title} — ${overdueDays(t.endDate)} days past the due date`);
+
+    const sec = [`${name} — stand-up, ${today}`];
+    if (moved.length) sec.push(`\nMOVED\n${bullets(moved)}`);
+    if (inFlight.length) sec.push(`\nTODAY\n${bullets(inFlight)}`);
+    if (blocked.length) sec.push(`\nBLOCKED\n${bullets(blocked)}`);
+    if (decisions.length) sec.push(`\nNEEDS A DECISION\n${bullets(decisions)}`);
+    if (sec.length === 1) sec.push("\nNo active work assigned.");
+
+    out.push({
+      id,
+      person: { id, name: u.name || "", email: u.email },
+      attention: blocked.length + decisions.length,
+      active: inFlight.length,
+      body: sec.join("\n"),
+    });
+  }
+
+  return out.sort((a, b) => b.attention - a.attention || b.active - a.active);
+}
+
+/**
+ * One client-facing status update per project — a copy-ready summary of what
+ * shipped, what's in flight, and what needs the client.
+ */
+export async function clientStatusUpdates() {
+  const projs = await listProjects({});
+  if (!projs.length) return [];
+  const { tasks } = await collections();
+  const now = new Date();
+  const twoWeeks = new Date(Date.now() - 14 * 86400000);
+  const today = shortDate(now);
+
+  const taskDocs = await tasks
+    .find({ projectId: { $in: projs.map((p) => new ObjectId(p.id)) } })
+    .toArray();
+  const byP = new Map();
+  for (const t of taskDocs) {
+    const k = String(t.projectId);
+    if (!byP.has(k)) byP.set(k, []);
+    byP.get(k).push(t);
+  }
+
+  return projs.map((p) => {
+    const list = byP.get(p.id) || [];
+    const shipped = list
+      .filter((t) => t.status === "completed" && t.completedAt && new Date(t.completedAt) >= twoWeeks)
+      .map((t) => t.title);
+    const inFlight = list
+      .filter((t) => t.status === "in_progress")
+      .map((t) => {
+        const late =
+          t.endDate && new Date(t.endDate) < now
+            ? ` — ${overdueDays(t.endDate)} days overdue`
+            : "";
+        return `${t.title}${late}`;
+      });
+    const review = [
+      ...new Set(
+        list.filter((t) => t.status === "in_review" || t.approval === "pending").map((t) => t.title),
+      ),
+    ];
+
+    const target = p.targetDate
+      ? `, with ${p.daysLeft} day${p.daysLeft === 1 ? "" : "s"} to the target date of ${shortDate(p.targetDate)}`
+      : "";
+    const summary = p.taskCounts.total
+      ? `The programme is ${p.completionPct}% complete across ${p.taskCounts.total} tracked workstream${p.taskCounts.total === 1 ? "" : "s"}${target}.`
+      : "No tracked workstreams have been scoped yet.";
+
+    const sec = [
+      `${p.name} — status update`,
+      `Prepared for ${p.client || "the client"} · ${today}`,
+      `\n${summary}`,
+    ];
+    if (shipped.length) sec.push(`\nSHIPPED IN THE LAST TWO WEEKS\n${bullets(shipped)}`);
+    if (inFlight.length) sec.push(`\nIN FLIGHT\n${bullets(inFlight)}`);
+    if (review.length) sec.push(`\nWITH YOU FOR REVIEW\n${bullets(review)}`);
+
+    return {
+      id: p.id,
+      project: { id: p.id, name: p.name, client: p.client || "" },
+      completionPct: p.completionPct,
+      body: sec.join("\n"),
+    };
   });
-
-  const divRows = Object.entries(matrix)
-    .map(([d, m]) => ({ d, overdue: m.overdue || 0, open: (m.open || 0) + (m.in_progress || 0) + (m.in_review || 0) + (m.blocked || 0) }))
-    .filter((r) => r.d !== "unknown")
-    .sort((a, b) => b.overdue - a.overdue);
-  const worst = divRows[0];
-  briefs.push({
-    id: "time-lost",
-    title: "Where time is being lost",
-    generatedAt,
-    body:
-      !worst || worst.overdue === 0
-        ? "No division currently has overdue work — every active task is inside its due date."
-        : `${divisionLabel(worst.d)} is carrying the most schedule risk with ${worst.overdue} overdue task${worst.overdue === 1 ? "" : "s"} against ${worst.open} in flight. ` +
-          divRows
-            .slice(1)
-            .filter((r) => r.overdue > 0)
-            .map((r) => `${divisionLabel(r.d)} has ${r.overdue}`)
-            .join(", ") +
-          (divRows.slice(1).some((r) => r.overdue > 0) ? " overdue as well." : ""),
-  });
-
-  const atRisk = scorecard.filter((s) => s.onTimeRate != null && s.onTimeRate < 70);
-  briefs.push({
-    id: "people",
-    title: "People to check in with",
-    generatedAt,
-    body:
-      atRisk.length === 0
-        ? "Every assignee with a completion history is holding a 70%+ on-time rate over the last six months."
-        : atRisk
-            .map(
-              (s) =>
-                `${s.user.name || s.user.email} is at ${s.onTimeRate}% on-time (${s.late} of ${s.completed} late, ${s.avgOverrunDays}d average overrun) with ${s.active} active`,
-            )
-            .join("; ") + ".",
-  });
-
-  const trend = monthly.map((m) => (m.slaPct == null ? "–" : `${m.month.slice(5)}: ${m.slaPct}%`)).join("  ·  ");
-  briefs.push({
-    id: "quarter",
-    title: "Last three months",
-    generatedAt,
-    body: monthly.every((m) => m.total === 0)
-      ? "Nothing was completed in the last three months."
-      : `On-time rate by month — ${trend}. Total completed: ${monthly.reduce((n, m) => n + m.total, 0)}.`,
-  });
-
-  return briefs;
 }
 
 // re-export for pages that already import from data.js elsewhere

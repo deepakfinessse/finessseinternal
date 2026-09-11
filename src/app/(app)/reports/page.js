@@ -4,11 +4,14 @@ import {
   deliverySla,
   assigneeScorecard,
   slaReport,
-  generateBriefs,
+  assigneeStandups,
+  clientStatusUpdates,
+  divisionLoad,
 } from "@/lib/pm-data";
-import { PageHeader, Card, EmptyState, Avatar, fmtDateTime } from "@/components/ui";
-import { RingGauge, Sparkline, RateBar } from "@/components/pm-ui";
+import { PageHeader, Card, EmptyState, Avatar } from "@/components/ui";
+import { RingGauge, Sparkline, RateBar, divisionHsl } from "@/components/pm-ui";
 import { Icon } from "@/components/icons";
+import { BriefColumn } from "./briefs";
 
 export const metadata = { title: "Reports · Finessse" };
 
@@ -39,12 +42,16 @@ export default async function ReportsPage({ searchParams }) {
   const sp = await searchParams;
   const tab = TABS.some((t) => t.key === sp.tab) ? sp.tab : "sla";
 
-  const [sla, scorecard, monthly, briefs] = await Promise.all([
+  const [sla, scorecard, load, monthly, standups, clientUpdates] = await Promise.all([
     tab === "sla" ? deliverySla() : null,
     tab === "sla" ? assigneeScorecard({ months: 6 }) : null,
+    tab === "sla" ? divisionLoad() : null,
     tab === "history" ? slaReport({ months: 12 }) : null,
-    tab === "briefs" ? generateBriefs() : null,
+    tab === "briefs" ? assigneeStandups() : null,
+    tab === "briefs" ? clientStatusUpdates() : null,
   ]);
+
+  const maxLoadHours = load ? Math.max(1, ...load.map((r) => r.hours)) : 1;
 
   return (
     <div className="flex flex-col gap-5">
@@ -171,6 +178,45 @@ export default async function ReportsPage({ searchParams }) {
               </div>
             )}
           </Card>
+
+          <Card
+            title={
+              <span className="flex items-center gap-2">
+                <Icon name="reports" size={15} className="text-faint" />
+                Where the time actually goes
+              </span>
+            }
+            description="Cumulative time-in-system by division over the last 90 days — active work counts from creation, completed work counts its full cycle."
+          >
+            {load.length === 0 ? (
+              <EmptyState title="No task activity yet" />
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {load.map((r) => {
+                  const pct = Math.round((r.hours / maxLoadHours) * 100);
+                  return (
+                    <div key={r.division} className="flex items-center gap-3 text-[12px]">
+                      <span className="w-40 shrink-0 truncate text-dim">{r.label}</span>
+                      <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-surface-3">
+                        <span
+                          className="absolute inset-y-0 left-0 rounded-full"
+                          style={{ width: `${pct}%`, background: `hsl(${divisionHsl(r.division)})` }}
+                        />
+                      </span>
+                      <span className="w-12 shrink-0 text-right font-mono font-semibold">{r.hours}h</span>
+                      <span className="w-14 shrink-0 text-right font-mono text-[11px]">
+                        {r.late ? (
+                          <span className="text-warn">{r.late} late</span>
+                        ) : (
+                          <span className="text-faint">—</span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
         </>
       )}
 
@@ -212,15 +258,27 @@ export default async function ReportsPage({ searchParams }) {
       )}
 
       {tab === "briefs" && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {briefs.map((b) => (
-            <Card key={b.id} title={b.title}>
-              <p className="text-[13px] leading-relaxed text-dim">{b.body}</p>
-              <div className="mono mt-3 text-[9px] uppercase tracking-[0.12em] text-faint">
-                Generated {fmtDateTime(b.generatedAt)}
-              </div>
-            </Card>
-          ))}
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <BriefColumn
+            title="Stand-ups"
+            eyebrow="Composed from live state"
+            items={standups.map((s) => ({
+              id: s.id,
+              title: s.person.name || s.person.email,
+              avatar: { name: s.person.name, email: s.person.email },
+              body: s.body,
+            }))}
+          />
+          <BriefColumn
+            title="Client status updates"
+            eyebrow="Ready to send"
+            items={clientUpdates.map((u) => ({
+              id: u.id,
+              title: u.project.name,
+              subtitle: u.project.client,
+              body: u.body,
+            }))}
+          />
         </div>
       )}
     </div>
