@@ -50,9 +50,36 @@ function Section({ label, children }) {
   return (
     <div>
       <div className="mb-1.5 mono text-[9px] uppercase tracking-[0.14em] text-faint">{label}</div>
-      <div className="flex flex-wrap gap-1.5">{children}</div>
+      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
     </div>
   );
+}
+
+const dateInputClass =
+  "rounded-[8px] border border-line-strong bg-surface px-2 py-1 text-[12px] text-text outline-none focus:border-line";
+
+function toISODate(d) {
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function datePreset(key) {
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (key === "today") return [toISODate(startToday), toISODate(startToday)];
+  if (key === "next7") {
+    return [toISODate(startToday), toISODate(new Date(startToday.getTime() + 7 * 86400000))];
+  }
+  if (key === "month") {
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return [toISODate(startToday), toISODate(end)];
+  }
+  return ["", ""];
+}
+
+function fmtShort(iso) {
+  if (!iso) return "";
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 /**
@@ -72,7 +99,12 @@ export function DeliveryFilters({
   const pathname = usePathname();
   const sp = useSearchParams();
 
-  const advCount = value.project.length + value.assignee.length + value.priority.length + value.division.length;
+  const advCount =
+    value.project.length +
+    value.assignee.length +
+    value.priority.length +
+    value.division.length +
+    (value.from || value.to ? 1 : 0);
   const [open, setOpen] = useState(advCount > 0);
 
   const persist = (f) => {
@@ -93,7 +125,12 @@ export function DeliveryFilters({
     persist({ ...value, [k]: [...set] });
   };
   const clearAll = () =>
-    persist({ mine: false, overdue: false, blocked: false, project: [], assignee: [], priority: [], division: [], q: "" });
+    persist({
+      mine: false, overdue: false, blocked: false,
+      project: [], assignee: [], priority: [], division: [],
+      from: "", to: "", q: "",
+    });
+  const clearDates = () => persist({ ...value, from: "", to: "" });
 
   const projName = (id) => projects.find((p) => p.id === id)?.name || "Project";
   const personName = (id) => {
@@ -109,6 +146,16 @@ export function DeliveryFilters({
     ...value.priority.map((v) => ({ k: "priority", v, label: prioName(v) })),
     ...value.division.map((v) => ({ k: "division", v, label: divName(v) })),
   ];
+  const dateChipLabel =
+    value.from && value.to
+      ? value.from === value.to
+        ? `Due ${fmtShort(value.from)}`
+        : `Due ${fmtShort(value.from)} – ${fmtShort(value.to)}`
+      : value.from
+        ? `Due from ${fmtShort(value.from)}`
+        : value.to
+          ? `Due until ${fmtShort(value.to)}`
+          : null;
   const anyActive = filterCount(value) > 0;
 
   return (
@@ -197,10 +244,45 @@ export function DeliveryFilters({
               </Pill>
             ))}
           </Section>
+
+          <Section label="Due date">
+            <Pill active={false} onClick={() => persist({ ...value, from: datePreset("today")[0], to: datePreset("today")[1] })}>
+              Today
+            </Pill>
+            <Pill active={false} onClick={() => persist({ ...value, from: datePreset("next7")[0], to: datePreset("next7")[1] })}>
+              Next 7 days
+            </Pill>
+            <Pill active={false} onClick={() => persist({ ...value, from: datePreset("month")[0], to: datePreset("month")[1] })}>
+              This month
+            </Pill>
+            <span className="mx-1 h-4 w-px bg-line" />
+            <input
+              type="date"
+              aria-label="From date"
+              value={value.from}
+              max={value.to || undefined}
+              onChange={(e) => persist({ ...value, from: e.target.value })}
+              className={dateInputClass}
+            />
+            <span className="text-[11px] text-faint">to</span>
+            <input
+              type="date"
+              aria-label="To date"
+              value={value.to}
+              min={value.from || undefined}
+              onChange={(e) => persist({ ...value, to: e.target.value })}
+              className={dateInputClass}
+            />
+            {(value.from || value.to) && (
+              <button type="button" onClick={clearDates} className="text-[11px] text-faint hover:text-text">
+                Clear
+              </button>
+            )}
+          </Section>
         </div>
       )}
 
-      {chips.length > 0 && (
+      {(chips.length > 0 || dateChipLabel) && (
         <div className="flex flex-wrap items-center gap-2">
           {chips.map((c) => (
             <button
@@ -213,6 +295,16 @@ export function DeliveryFilters({
               <Icon name="plus" size={11} strokeWidth={2.6} className="rotate-45" />
             </button>
           ))}
+          {dateChipLabel && (
+            <button
+              type="button"
+              onClick={clearDates}
+              className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface px-2.5 py-1 text-[12px] font-medium transition-colors hover:border-warn hover:text-warn"
+            >
+              {dateChipLabel}
+              <Icon name="plus" size={11} strokeWidth={2.6} className="rotate-45" />
+            </button>
+          )}
           <button type="button" onClick={clearAll} className="text-[12px] text-faint hover:text-text">
             Clear
           </button>

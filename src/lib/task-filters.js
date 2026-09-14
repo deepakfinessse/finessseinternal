@@ -2,8 +2,8 @@ import { DIVISION_KEYS, PRIORITY_KEYS } from "./pm-constants";
 
 /**
  * Shared task-filter model used by every delivery view (Board, Timeline,
- * Heatmap). State lives in the URL; a `pm_filters` cookie carries it across
- * pages so setting a filter once applies everywhere.
+ * Heatmap, Projects). State lives in the URL; a `pm_filters` cookie carries it
+ * across pages so setting a filter once applies everywhere.
  */
 export const TASK_FILTER_KEYS = [
   "mine",
@@ -13,12 +13,16 @@ export const TASK_FILTER_KEYS = [
   "assignee",
   "priority",
   "division",
+  "from",
+  "to",
   "q",
 ];
 
 export const FILTER_COOKIE = "pm_filters";
 
 const csv = (v) => (v ? String(v).split(",").filter(Boolean) : []);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const validDate = (v) => (v && DATE_RE.test(v) ? v : "");
 
 /** `getter` is `(key) => string | null` — works with URLSearchParams or a map. */
 export function parseTaskFilters(getter) {
@@ -31,6 +35,8 @@ export function parseTaskFilters(getter) {
     assignee: csv(g("assignee")),
     priority: csv(g("priority")).filter((p) => PRIORITY_KEYS.includes(p)),
     division: csv(g("division")).filter((d) => DIVISION_KEYS.includes(d)),
+    from: validDate(g("from")),
+    to: validDate(g("to")),
     q: (g("q") || "").trim(),
   };
 }
@@ -71,6 +77,8 @@ export function filterListArgs(f, userId) {
     assigneeIds: assignee,
     overdue: f.overdue || undefined,
     blocked: f.blocked || undefined,
+    dueFrom: f.from || undefined,
+    dueTo: f.to || undefined,
     q: f.q || undefined,
   };
 }
@@ -84,6 +92,8 @@ export function serializeFilters(f) {
   for (const k of ["project", "assignee", "priority", "division"]) {
     if (f[k]?.length) p.set(k, f[k].join(","));
   }
+  if (f.from) p.set("from", f.from);
+  if (f.to) p.set("to", f.to);
   if (f.q) p.set("q", f.q);
   return p.toString();
 }
@@ -97,6 +107,7 @@ export function filterCount(f) {
     (f.mine ? 1 : 0) +
     (f.overdue ? 1 : 0) +
     (f.blocked ? 1 : 0) +
+    (f.from || f.to ? 1 : 0) +
     (f.q ? 1 : 0)
   );
 }

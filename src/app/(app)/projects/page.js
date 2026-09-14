@@ -128,7 +128,9 @@ export default async function ProjectsPage({ searchParams }) {
     filters.priority.length ||
     filters.mine ||
     filters.overdue ||
-    filters.blocked;
+    filters.blocked ||
+    filters.from ||
+    filters.to;
 
   const [allProjects, matchTasks, projectOpts, people] = await Promise.all([
     listProjects({ divisions: filters.division, q: filters.q || undefined }),

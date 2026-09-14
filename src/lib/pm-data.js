@@ -240,7 +240,7 @@ export async function listTasks(user, filters = {}) {
     status,
     assigneeId, assigneeIds,
     priorities,
-    approval, overdue, blocked, q,
+    approval, overdue, blocked, dueFrom, dueTo, q,
   } = filters;
 
   const arr = (single, plural) =>
@@ -261,10 +261,18 @@ export async function listTasks(user, filters = {}) {
   if (status) query.status = status;
   if (approval) query.approval = approval;
   if (blocked) query.status = "blocked";
+
+  // Due-date range and "overdue" both constrain `endDate` — merge them into
+  // one range instead of letting the later one clobber the earlier.
+  const endDateRange = {};
   if (overdue) {
     query.status = { $ne: "completed" };
-    query.endDate = { $lt: new Date() };
+    endDateRange.$lt = new Date();
   }
+  if (dueFrom) endDateRange.$gte = new Date(`${dueFrom}T00:00:00`);
+  if (dueTo) endDateRange.$lte = new Date(`${dueTo}T23:59:59.999`);
+  if (Object.keys(endDateRange).length) query.endDate = endDateRange;
+
   if (q) query.title = { $regex: q, $options: "i" };
 
   const docs = await tasks.find(query).sort({ endDate: 1, priority: -1, _id: -1 }).toArray();

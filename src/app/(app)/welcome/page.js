@@ -62,9 +62,9 @@ export default async function WelcomePage() {
         <Link href="/profile" className="rounded-lg border border-gray/30 px-3 py-2 font-semibold hover:border-primary">
           Complete my profile
         </Link>
-        <Link href="/sessions" className="rounded-lg border border-gray/30 px-3 py-2 font-semibold hover:border-primary">
+        {/* <Link href="/sessions" className="rounded-lg border border-gray/30 px-3 py-2 font-semibold hover:border-primary">
           Review my devices
-        </Link>
+        </Link> */}
       </div>
     </div>
   );
