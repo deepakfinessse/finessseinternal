@@ -24,8 +24,9 @@ export default async function SignInPage({ searchParams }) {
 
         {error && (
           <p className="mt-4 rounded-[10px] border border-[color-mix(in_srgb,var(--warn)_40%,transparent)] bg-warn-bg px-3 py-2 text-[13px] text-warn">
-            That account can&apos;t access Finessse. Sign in with your{" "}
-            {WORKSPACE_DOMAIN} account.
+            That account can&apos;t access Finessse. 
+            {/* Sign in with your{" "}
+            {WORKSPACE_DOMAIN} account. */}
           </p>
         )}
 
