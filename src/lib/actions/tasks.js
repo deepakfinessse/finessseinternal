@@ -7,6 +7,7 @@ import { z } from "zod";
 import { collections } from "@/lib/db";
 import { assertPermission, getCurrentUser } from "@/lib/access";
 import { writeAudit } from "@/lib/audit";
+import { notifyUser, notifyUsers, notifyByPermission } from "@/lib/notifications";
 import {
   DIVISION_KEYS,
   PRIORITY_KEYS,
@@ -113,6 +114,16 @@ export async function createTask(_prev, formData) {
     targetId: res.insertedId,
     meta: { title: d.title, project: project.name, division: d.division },
   });
+  if (d.assigneeId) {
+    await notifyUser({
+      userId: d.assigneeId,
+      actorId: actor.id,
+      type: "task.assigned",
+      title: `You were assigned: ${d.title}`,
+      body: project.name,
+      link: `/tasks/${res.insertedId}`,
+    });
+  }
   bump(["/tasks", `/projects/${d.projectId}`, "/analytics"]);
   return { ok: true, id: String(res.insertedId), redirect: `/tasks/${res.insertedId}` };
 }
@@ -139,11 +150,29 @@ export async function updateTask(_prev, formData) {
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input" };
 
   const patch = { ...parsed.data, updatedAt: new Date() };
+  let newCollaborators = null;
   if (formData.has("collaboratorIds")) {
-    patch.collaboratorIds = formData.getAll("collaboratorIds").map(String).filter(Boolean).map(oid);
+    const ids = formData.getAll("collaboratorIds").map(String).filter(Boolean);
+    newCollaborators = ids;
+    patch.collaboratorIds = ids.map(oid);
   }
   await tasks.updateOne({ _id: task._id }, { $set: patch });
   await writeAudit({ actorId: actor.id, action: "task.update", targetType: "task", targetId: task._id, meta: {} });
+
+  if (newCollaborators) {
+    const before = new Set((task.collaboratorIds || []).map(String));
+    const added = newCollaborators.filter((c) => !before.has(c));
+    if (added.length) {
+      await notifyUsers({
+        userIds: added,
+        actorId: actor.id,
+        type: "task.collaborator_added",
+        title: `You're now collaborating on: ${patch.title}`,
+        body: "",
+        link: `/tasks/${id}`,
+      });
+    }
+  }
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`]);
   return { ok: true };
 }
@@ -204,6 +233,15 @@ export async function assignTask(_prev, formData) {
     targetId: task._id,
     meta: { assigneeId: assigneeId || null },
   });
+  if (assigneeId && assigneeId !== String(task.assigneeId || "")) {
+    await notifyUser({
+      userId: assigneeId,
+      actorId: actor.id,
+      type: "task.assigned",
+      title: `You were assigned: ${task.title}`,
+      link: `/tasks/${id}`,
+    });
+  }
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
   return { ok: true };
 }
@@ -357,6 +395,14 @@ export async function raiseBlocker(_prev, formData) {
     targetId: task._id,
     meta: { kind: parsed.data.kind, from: task.status },
   });
+  await notifyUsers({
+    userIds: [task.assigneeId, ...(task.collaboratorIds || [])].filter(Boolean).map(String),
+    actorId: me.id,
+    type: "task.blocked",
+    title: `Blocked: ${task.title}`,
+    body: parsed.data.description,
+    link: `/tasks/${id}`,
+  });
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
   return { ok: true };
 }
@@ -408,6 +454,13 @@ export async function resolveBlocker(_prev, formData) {
     targetId: task._id,
     meta: { resumedAt: back },
   });
+  await notifyUsers({
+    userIds: [task.assigneeId, ...(task.collaboratorIds || [])].filter(Boolean).map(String),
+    actorId: me.id,
+    type: "task.unblocked",
+    title: `Unblocked: ${task.title}`,
+    link: `/tasks/${id}`,
+  });
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
   return { ok: true };
 }
@@ -427,6 +480,13 @@ export async function submitForApproval(_prev, formData) {
     { $set: { approval: "pending", updatedAt: new Date() } },
   );
   await writeAudit({ actorId: me.id, action: "task.approval.request", targetType: "task", targetId: task._id, meta: {} });
+  await notifyByPermission({
+    permission: "task:approve",
+    actorId: me.id,
+    type: "task.approval_requested",
+    title: `Approval requested: ${task.title}`,
+    link: `/tasks/${id}`,
+  });
   bump(["/tasks", `/tasks/${id}`, "/analytics"]);
   return { ok: true };
 }
@@ -460,6 +520,15 @@ export async function approveTask(_prev, formData) {
     targetId: task._id,
     meta: { onTime: task.endDate ? now <= new Date(task.endDate) : true },
   });
+  if (task.assigneeId) {
+    await notifyUser({
+      userId: task.assigneeId,
+      actorId: me.id,
+      type: "task.approved",
+      title: `Approved: ${task.title}`,
+      link: `/tasks/${id}`,
+    });
+  }
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
   return { ok: true };
 }
@@ -491,6 +560,16 @@ export async function rejectTask(_prev, formData) {
     targetId: task._id,
     meta: { note },
   });
+  if (task.assigneeId) {
+    await notifyUser({
+      userId: task.assigneeId,
+      actorId: me.id,
+      type: "task.rejected",
+      title: `Revisions requested: ${task.title}`,
+      body: note,
+      link: `/tasks/${id}`,
+    });
+  }
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
   return { ok: true };
 }
@@ -514,6 +593,15 @@ export async function reopenTask(_prev, formData) {
     },
   );
   await writeAudit({ actorId: me.id, action: "task.reopen", targetType: "task", targetId: task._id, meta: {} });
+  if (task.assigneeId) {
+    await notifyUser({
+      userId: task.assigneeId,
+      actorId: me.id,
+      type: "task.reopened",
+      title: `Reopened: ${task.title}`,
+      link: `/tasks/${id}`,
+    });
+  }
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
   return { ok: true };
 }
@@ -544,6 +632,16 @@ export async function moveTask(_prev, formData) {
     return { ok: false, error: "Open the task to raise a blocker with a reason." };
   }
 
+  const notifyOwners = (type, title, body) =>
+    notifyUsers({
+      userIds: [task.assigneeId, ...(task.collaboratorIds || [])].filter(Boolean).map(String),
+      actorId: me.id,
+      type,
+      title,
+      body,
+      link: `/tasks/${id}`,
+    });
+
   if (from === "blocked") {
     const back = task.statusBeforeBlock || "in_progress";
     await tasks.updateOne(
@@ -553,6 +651,7 @@ export async function moveTask(_prev, formData) {
         $push: { "blocker.log": { at: now, by: oid(me.id), note: "Blocker resolved from the board" } },
       },
     );
+    await notifyOwners("task.unblocked", `Unblocked: ${task.title}`);
     return done("task.blocker.resolve", { resumedAt: back });
   }
 
@@ -567,6 +666,12 @@ export async function moveTask(_prev, formData) {
         },
       },
     );
+    if (task.assigneeId) {
+      await notifyUser({
+        userId: task.assigneeId, actorId: me.id, type: "task.approved",
+        title: `Approved: ${task.title}`, link: `/tasks/${id}`,
+      });
+    }
     return done("task.approve", { onTime: task.endDate ? now <= new Date(task.endDate) : true });
   }
 
@@ -577,6 +682,12 @@ export async function moveTask(_prev, formData) {
       { _id: task._id },
       { $set: { status, approval: "none", completedAt: null, updatedAt: now } },
     );
+    if (task.assigneeId) {
+      await notifyUser({
+        userId: task.assigneeId, actorId: me.id, type: "task.reopened",
+        title: `Reopened: ${task.title}`, link: `/tasks/${id}`,
+      });
+    }
     return done("task.reopen", { to: status });
   }
 

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { collections } from "@/lib/db";
 import { assertPermission } from "@/lib/access";
 import { writeAudit } from "@/lib/audit";
+import { notifyUser } from "@/lib/notifications";
 import { PERMISSION_KEYS } from "@/lib/rbac-catalog";
 
 const oid = (id) => new ObjectId(String(id));
@@ -186,6 +187,15 @@ export async function assignRoles(_prev, formData) {
     targetId: target._id,
     meta: { roles: roleDocs.map((r) => r.key) },
   });
+  if (roleDocs.length) {
+    await notifyUser({
+      userId: userId,
+      actorId: actor.id,
+      type: "role.assigned",
+      title: `Your access was updated: ${roleDocs.map((r) => r.name).join(", ")}`,
+      link: "/profile",
+    });
+  }
   revalidatePath("/team");
   revalidatePath(`/team/${userId}`);
   return { ok: true };

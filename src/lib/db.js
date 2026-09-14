@@ -19,6 +19,7 @@ export async function collections() {
     settings: db.collection("settings"),
     projects: db.collection("projects"),
     tasks: db.collection("tasks"),
+    notifications: db.collection("notifications"),
   };
 }
 
@@ -64,6 +65,8 @@ export async function ensureDbReady() {
       c.tasks.createIndex({ collaboratorIds: 1 }),
       c.tasks.createIndex({ endDate: 1 }),
       c.tasks.createIndex({ "approval.state": 1 }),
+      c.notifications.createIndex({ userId: 1, createdAt: -1 }),
+      c.notifications.createIndex({ userId: 1, read: 1 }),
     ]);
 
     const now = new Date();
