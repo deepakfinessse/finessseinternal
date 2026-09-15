@@ -1,8 +1,12 @@
 // Agency divisions — fixed routing targets a project is assigned to.
 export const DIVISIONS = [
-  { key: "sem-social", label: "SEM & Social Media" },
-  { key: "orm-content", label: "ORM & Content Projects" },
-  { key: "webdev-graphics", label: "Web Development & Graphics Designing" },
+  { key: "social-media", label: "Social Media" },
+  { key: "seo", label: "SEO" },
+  { key: "webdev", label: "Web Development" },
+  { key: "graphics-designing", label: "Graphic Designing" },
+  { key: "orm", label: "ORM" },
+  { key: "content-writing", label: "Content Writing" },
+  
 ];
 export const DIVISION_KEYS = DIVISIONS.map((d) => d.key);
 export const divisionLabel = (k) =>

@@ -12,7 +12,7 @@ import {
 
 function DivisionPicker({ selected = [] }) {
   return (
-    <Field label="Divisions" hint="Where this project is routed (section 2)">
+    <Field label="Divisions" hint="Select the divisions this project is assigned to.">
       <div className="flex flex-wrap gap-2">
         {DIVISIONS.map((d) => (
           <label
@@ -54,10 +54,10 @@ export function ProjectForm({ project }) {
         <textarea name="description" rows={3} defaultValue={project?.description || ""} className={inputClass} />
       </Field>
       <DivisionPicker selected={project?.divisions || []} />
-      <label className="flex items-center gap-2 text-sm">
+      {/* <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="clientVisible" defaultChecked={project?.clientVisible} />
         Visible to client
-      </label>
+      </label> */}
       <SubmitButton>{editing ? "Save project" : "Onboard project"}</SubmitButton>
     </ActionForm>
   );
