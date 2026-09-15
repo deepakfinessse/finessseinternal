@@ -52,6 +52,9 @@ try {
     db.collection("tasks").createIndex({ status: 1 }),
     db.collection("tasks").createIndex({ assigneeId: 1 }),
     db.collection("tasks").createIndex({ endDate: 1 }),
+    db.collection("chatConversations").createIndex({ key: 1 }, { unique: true }),
+    db.collection("chatConversations").createIndex({ participantIds: 1 }),
+    db.collection("chatMessages").createIndex({ conversationId: 1, createdAt: 1 }),
   ]);
 
   // Re-sync system roles to the catalog defaults. This is an explicit admin
@@ -79,9 +82,19 @@ try {
     { $setOnInsert: { ...DEFAULT_ONBOARDING, updatedAt: now } },
     { upsert: true },
   );
+  await db.collection("chatConversations").updateOne(
+    { _id: "team-general" },
+    {
+      $setOnInsert: {
+        _id: "team-general", type: "channel", key: "team-general", participantIds: null,
+        lastMessage: null, lastMessageAt: now, reads: {}, createdAt: now, updatedAt: now,
+      },
+    },
+    { upsert: true },
+  );
 
   console.log("\nSeeded. Current state:");
-  for (const name of ["users", "roles", "invitations", "sessions", "releaseVersions", "auditLogs", "projects", "tasks"]) {
+  for (const name of ["users", "roles", "invitations", "sessions", "releaseVersions", "auditLogs", "projects", "tasks", "chatConversations", "chatMessages"]) {
     const n = await db.collection(name).countDocuments().catch(() => 0);
     console.log(`  ${name.padEnd(16)} ${n}`);
   }

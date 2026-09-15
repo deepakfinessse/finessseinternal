@@ -20,8 +20,13 @@ export async function collections() {
     projects: db.collection("projects"),
     tasks: db.collection("tasks"),
     notifications: db.collection("notifications"),
+    chatConversations: db.collection("chatConversations"),
+    chatMessages: db.collection("chatMessages"),
   };
 }
+
+/** Fixed id of the one team-wide channel — every active user is implicitly a member. */
+export const TEAM_GENERAL_ID = "team-general";
 
 export const DEFAULT_ONBOARDING = {
   _id: "onboarding",
@@ -67,6 +72,9 @@ export async function ensureDbReady() {
       c.tasks.createIndex({ "approval.state": 1 }),
       c.notifications.createIndex({ userId: 1, createdAt: -1 }),
       c.notifications.createIndex({ userId: 1, read: 1 }),
+      c.chatConversations.createIndex({ key: 1 }, { unique: true }),
+      c.chatConversations.createIndex({ participantIds: 1 }),
+      c.chatMessages.createIndex({ conversationId: 1, createdAt: 1 }),
     ]);
 
     const now = new Date();
@@ -81,6 +89,24 @@ export async function ensureDbReady() {
     await c.settings.updateOne(
       { _id: DEFAULT_ONBOARDING._id },
       { $setOnInsert: { ...DEFAULT_ONBOARDING, updatedAt: now } },
+      { upsert: true },
+    );
+
+    await c.chatConversations.updateOne(
+      { _id: TEAM_GENERAL_ID },
+      {
+        $setOnInsert: {
+          _id: TEAM_GENERAL_ID,
+          type: "channel",
+          key: TEAM_GENERAL_ID,
+          participantIds: null,
+          lastMessage: null,
+          lastMessageAt: now,
+          reads: {},
+          createdAt: now,
+          updatedAt: now,
+        },
+      },
       { upsert: true },
     );
   })();

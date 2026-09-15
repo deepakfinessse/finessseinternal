@@ -7,6 +7,7 @@ import { Icon } from "@/components/icons";
 import { Kbd } from "@/components/ui";
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notification-bell";
+import { ChatBadge } from "@/components/chat-badge";
 
 const TITLES = [
   [/^\/dashboard/, "Pulse"],
@@ -15,6 +16,7 @@ const TITLES = [
   [/^\/tasks/, "Board"],
   [/^\/timeline/, "Timeline"],
   [/^\/heatmap/, "Heatmap"],
+  [/^\/chat/, "Chat"],
   [/^\/projects\/[^/]+$/, "Project"],
   [/^\/projects/, "Projects"],
   [/^\/team\/[^/]+$/, "Person"],
@@ -86,6 +88,7 @@ export function Topbar({ canCreateTask }) {
       </form>
 
       <div className="flex shrink-0 items-center gap-2">
+        <ChatBadge />
         <NotificationBell />
         {canCreateTask && (
           <Link

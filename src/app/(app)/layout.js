@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/access";
 import { touchSession } from "@/lib/session-tracking";
 import { taskStats } from "@/lib/pm-data";
+import { unreadChatCount } from "@/lib/chat";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { Topbar } from "@/components/topbar";
 import { Avatar } from "@/components/ui";
@@ -16,7 +17,10 @@ export default async function AppLayout({ children }) {
 
   const can = (k) => user.can(k);
   const canTasks = can("task:read") || can("task:read:all");
-  const stats = canTasks ? await taskStats(user) : null;
+  const [stats, chatUnread] = await Promise.all([
+    canTasks ? taskStats(user) : null,
+    unreadChatCount(user.id),
+  ]);
 
   const groups = [
     {
@@ -33,6 +37,7 @@ export default async function AppLayout({ children }) {
       label: "People",
       items: [
         can("assignee:read") && { href: "/team", label: "People", icon: "people" },
+        { href: "/chat", label: "Chat", icon: "comment", badge: chatUnread || undefined },
         (can("assignee:invite") || can("onboarding:manage")) && {
           href: "/onboarding",
           label: "Onboarding",
