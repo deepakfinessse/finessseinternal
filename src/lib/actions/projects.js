@@ -6,7 +6,8 @@ import { z } from "zod";
 import { collections } from "@/lib/db";
 import { assertPermission } from "@/lib/access";
 import { writeAudit } from "@/lib/audit";
-import { DIVISION_KEYS, PROJECT_STATUSES } from "@/lib/pm-constants";
+import { PROJECT_STATUSES } from "@/lib/pm-constants";
+import { divisionKeys } from "@/lib/divisions";
 
 const oid = (id) => new ObjectId(String(id));
 
@@ -14,9 +15,15 @@ const ProjectInput = z.object({
   name: z.string().min(2).max(120),
   client: z.string().max(120).optional().default(""),
   description: z.string().max(2000).optional().default(""),
-  divisions: z.array(z.enum(DIVISION_KEYS)).min(1, "Assign at least one division"),
+  divisions: z.array(z.string()).min(1, "Assign at least one division"),
   clientVisible: z.boolean().optional().default(false),
 });
+
+async function assertKnownDivisions(keys) {
+  const known = await divisionKeys();
+  const unknown = keys.filter((k) => !known.includes(k));
+  return unknown.length ? `Unknown division: ${unknown.join(", ")}` : null;
+}
 
 export async function createProject(_prev, formData) {
   const actor = await assertPermission("project:create");
@@ -30,6 +37,8 @@ export async function createProject(_prev, formData) {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
+  const divErr = await assertKnownDivisions(parsed.data.divisions);
+  if (divErr) return { ok: false, error: divErr };
   const { projects } = await collections();
   const now = new Date();
   const res = await projects.insertOne({
@@ -65,6 +74,8 @@ export async function updateProject(_prev, formData) {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
+  const divErr = await assertKnownDivisions(parsed.data.divisions);
+  if (divErr) return { ok: false, error: divErr };
   const { projects } = await collections();
   const p = await projects.findOne({ _id: oid(id) });
   if (!p) return { ok: false, error: "Project not found." };

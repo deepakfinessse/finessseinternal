@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/access";
 import { listTasks, listProjectOptions } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
-import { divisionLabel, nowMs } from "@/lib/pm-constants";
+import { divisionLabelMap, listDivisions } from "@/lib/divisions";
+import { nowMs } from "@/lib/pm-constants";
 import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-filters";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DeliveryFilters } from "@/components/delivery-filters";
@@ -65,10 +66,12 @@ export default async function TimelinePage({ searchParams }) {
     cookieValue: cookieStore.get(FILTER_COOKIE)?.value,
   });
 
-  const [allTasks, projects, people] = await Promise.all([
+  const [allTasks, projects, people, divisions, dmap] = await Promise.all([
     listTasks(user, filterListArgs(filters, user.id)),
     user.can("project:read") ? listProjectOptions() : [],
     canSeeAll ? listUsers({ status: "active" }) : [],
+    listDivisions(),
+    divisionLabelMap(),
   ]);
   const tasks = allTasks.filter((t) => t.endDate || t.startDate);
 
@@ -84,7 +87,7 @@ export default async function TimelinePage({ searchParams }) {
   const keyFns = {
     person: (t) => [t.assignee?.id || "_", t.assignee?.name || "Unassigned"],
     project: (t) => [t.project?.id || "_", t.project?.name || "No project"],
-    division: (t) => [t.division || "_", divisionLabel(t.division)],
+    division: (t) => [t.division || "_", dmap[t.division] || t.division || "—"],
   };
   for (const t of tasks) {
     const [id, label] = keyFns[by](t);
@@ -127,6 +130,7 @@ export default async function TimelinePage({ searchParams }) {
         value={filters}
         projects={projects}
         people={people.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
+        divisions={divisions}
         canSeeAll={canSeeAll}
       />
 

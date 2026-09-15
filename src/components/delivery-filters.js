@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { DIVISIONS } from "@/lib/pm-constants";
 import {
   FILTER_COOKIE,
   TASK_FILTER_KEYS,
@@ -91,6 +90,7 @@ export function DeliveryFilters({
   value,
   projects = [],
   people = [],
+  divisions = [],
   canSeeAll = false,
   showSearch = false,
   searchPlaceholder = "Search…",
@@ -137,7 +137,7 @@ export function DeliveryFilters({
     const u = people.find((p) => p.id === id);
     return u ? (u.name || u.email || "Assignee") : "Assignee";
   };
-  const divName = (k) => DIVISIONS.find((d) => d.key === k)?.label || k;
+  const divName = (k) => divisions.find((d) => d.key === k)?.label || k;
   const prioName = (k) => PRIORITY_OPTS.find((p) => p.key === k)?.label || k;
 
   const chips = [
@@ -238,7 +238,8 @@ export function DeliveryFilters({
           </Section>
 
           <Section label="Division">
-            {DIVISIONS.map((d) => (
+            {divisions.length === 0 && <span className="text-[12px] text-faint">No divisions</span>}
+            {divisions.map((d) => (
               <Pill key={d.key} active={value.division.includes(d.key)} onClick={() => toggleIn("division", d.key)}>
                 {d.label}
               </Pill>

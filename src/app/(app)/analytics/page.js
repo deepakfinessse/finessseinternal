@@ -7,7 +7,8 @@ import {
   statusHeatmap,
   slaReport,
 } from "@/lib/pm-data";
-import { DIVISIONS, TASK_STATUSES, STATUS_LABEL } from "@/lib/pm-constants";
+import { listDivisions } from "@/lib/divisions";
+import { TASK_STATUSES, STATUS_LABEL } from "@/lib/pm-constants";
 import { Card, Stat, EmptyState, fmtDate } from "@/components/ui";
 import { TaskStatusBadge, OverdueTag } from "@/components/pm-ui";
 
@@ -28,12 +29,13 @@ export default async function AnalyticsPage() {
   const to = new Date(from);
   to.setDate(to.getDate() + 7 * 6); // six weeks out
 
-  const [overview, assignees, calendar, heatmap, sla] = await Promise.all([
+  const [overview, assignees, calendar, heatmap, sla, divisions] = await Promise.all([
     analyticsOverview(),
     globalAssigneeView(),
     calendarTasks({ from, to }),
     statusHeatmap(),
     slaReport({ months: 6 }),
+    listDivisions(),
   ]);
 
   // group calendar tasks by ISO week
@@ -55,7 +57,7 @@ export default async function AnalyticsPage() {
 
   const heatMax = Math.max(
     1,
-    ...DIVISIONS.flatMap((d) => TASK_STATUSES.map((s) => heatmap[d.key]?.[s] || 0)),
+    ...divisions.flatMap((d) => TASK_STATUSES.map((s) => heatmap[d.key]?.[s] || 0)),
   );
 
   return (
@@ -158,7 +160,7 @@ export default async function AnalyticsPage() {
                 </tr>
               </thead>
               <tbody>
-                {DIVISIONS.map((d) => (
+                {divisions.map((d) => (
                   <tr key={d.key}>
                     <td className="whitespace-nowrap pr-2 text-gray">{d.label}</td>
                     {TASK_STATUSES.map((s) => {

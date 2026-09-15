@@ -1,4 +1,4 @@
-import { DIVISION_KEYS, PRIORITY_KEYS } from "./pm-constants";
+import { PRIORITY_KEYS } from "./pm-constants";
 
 /**
  * Shared task-filter model used by every delivery view (Board, Timeline,
@@ -34,7 +34,7 @@ export function parseTaskFilters(getter) {
     project: csv(g("project")),
     assignee: csv(g("assignee")),
     priority: csv(g("priority")).filter((p) => PRIORITY_KEYS.includes(p)),
-    division: csv(g("division")).filter((d) => DIVISION_KEYS.includes(d)),
+    division: csv(g("division")),
     from: validDate(g("from")),
     to: validDate(g("to")),
     q: (g("q") || "").trim(),

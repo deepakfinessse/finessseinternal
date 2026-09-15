@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/access";
 import { getProject, listTasks } from "@/lib/pm-data";
-import { divisionLabel } from "@/lib/pm-constants";
+import { listDivisions } from "@/lib/divisions";
 import { Card, Badge, Stat, EmptyState, LinkButton, fmtDate } from "@/components/ui";
 import { DivisionDot, TaskStatusBadge, PriorityChip, OverdueTag } from "@/components/pm-ui";
 import { ProjectForm, ProjectStatusForm, DeleteProjectButton } from "../project-forms";
@@ -20,7 +20,10 @@ export default async function ProjectDetailPage({ params }) {
   const project = await getProject(id);
   if (!project) notFound();
 
-  const tasks = await listTasks(user, { projectId: id });
+  const [tasks, divisions] = await Promise.all([
+    listTasks(user, { projectId: id }),
+    listDivisions(),
+  ]);
   const canEdit = user.can("project:update");
   const canCreateTask = user.can("task:create");
 
@@ -43,10 +46,10 @@ export default async function ProjectDetailPage({ params }) {
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-faint">
           {project.client && <span>Client: {project.client}</span>}
           {project.client && project.divisions.length > 0 && <span>·</span>}
-          {project.divisions.map((d) => (
+          {project.divisions.map((d, i) => (
             <span key={d} className="inline-flex items-center gap-1.5">
               <DivisionDot division={d} size={6} />
-              {divisionLabel(d)}
+              {project.divisionLabels[i] || d}
             </span>
           ))}
         </div>
@@ -116,7 +119,7 @@ export default async function ProjectDetailPage({ params }) {
           )}
           {canEdit && (
             <Card title="Edit project">
-              <ProjectForm project={project} />
+              <ProjectForm project={project} divisions={divisions} />
             </Card>
           )}
           {user.can("project:delete") && (

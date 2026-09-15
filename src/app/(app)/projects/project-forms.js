@@ -2,7 +2,7 @@
 
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Field, inputClass } from "@/components/ui";
-import { DIVISIONS, PROJECT_STATUSES } from "@/lib/pm-constants";
+import { PROJECT_STATUSES } from "@/lib/pm-constants";
 import {
   createProject,
   updateProject,
@@ -10,11 +10,12 @@ import {
   deleteProject,
 } from "@/lib/actions/projects";
 
-function DivisionPicker({ selected = [] }) {
+function DivisionPicker({ divisions = [], selected = [] }) {
   return (
     <Field label="Divisions" hint="Select the divisions this project is assigned to.">
       <div className="flex flex-wrap gap-2">
-        {DIVISIONS.map((d) => (
+        {divisions.length === 0 && <span className="text-sm text-gray">No divisions configured yet.</span>}
+        {divisions.map((d) => (
           <label
             key={d.key}
             className="flex items-center gap-1.5 rounded-lg border border-gray/25 px-2.5 py-1 text-sm"
@@ -33,7 +34,7 @@ function DivisionPicker({ selected = [] }) {
   );
 }
 
-export function ProjectForm({ project }) {
+export function ProjectForm({ project, divisions = [] }) {
   const editing = !!project;
   return (
     <ActionForm
@@ -53,7 +54,7 @@ export function ProjectForm({ project }) {
       <Field label="Description">
         <textarea name="description" rows={3} defaultValue={project?.description || ""} className={inputClass} />
       </Field>
-      <DivisionPicker selected={project?.divisions || []} />
+      <DivisionPicker divisions={divisions} selected={project?.divisions || []} />
       {/* <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="clientVisible" defaultChecked={project?.clientVisible} />
         Visible to client

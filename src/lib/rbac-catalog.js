@@ -44,6 +44,8 @@ export const PERMISSION_CATALOG = [
 
   { key: "audit:read", group: "Audit", description: "View the audit log" },
   { key: "settings:manage", group: "Settings", description: "Manage workspace settings" },
+
+  { key: "division:manage", group: "Divisions", description: "Create, rename and delete agency divisions" },
 ];
 
 export const PERMISSION_KEYS = PERMISSION_CATALOG.map((p) => p.key);

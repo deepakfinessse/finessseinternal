@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { requirePermission } from "@/lib/access";
 import { listProjects, listTasks, listProjectOptions } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
-import { divisionLabel } from "@/lib/pm-constants";
+import { listDivisions } from "@/lib/divisions";
 import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-filters";
 import { PageHeader, Card, EmptyState, AvatarStack, fmtDate } from "@/components/ui";
 import { DivisionDot, RingStat } from "@/components/pm-ui";
@@ -52,13 +52,13 @@ function ProjectCard({ p }) {
         {p.divisions.length === 0 ? (
           <span className="text-[11px] text-faint">No divisions assigned</span>
         ) : (
-          p.divisions.map((d) => (
+          p.divisions.map((d, i) => (
             <span
               key={d}
               className="mono inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[9.5px] uppercase tracking-[0.09em] text-dim"
             >
               <DivisionDot division={d} size={6} />
-              {divisionLabel(d)}
+              {p.divisionLabels[i] || d}
             </span>
           ))
         )}
@@ -132,13 +132,14 @@ export default async function ProjectsPage({ searchParams }) {
     filters.from ||
     filters.to;
 
-  const [allProjects, matchTasks, projectOpts, people] = await Promise.all([
+  const [allProjects, matchTasks, projectOpts, people, divisions] = await Promise.all([
     listProjects({ divisions: filters.division, q: filters.q || undefined }),
     taskDims
       ? listTasks(user, filterListArgs({ ...filters, division: [], project: [] }, user.id))
       : null,
     user.can("project:read") ? listProjectOptions() : [],
     user.can("assignee:read") ? listUsers({ status: "active" }) : [],
+    listDivisions(),
   ]);
 
   let projects = allProjects;
@@ -170,7 +171,7 @@ export default async function ProjectsPage({ searchParams }) {
 
       {showForm && (
         <Card title="Onboard a project" description="Project & division setup.">
-          <ProjectForm />
+          <ProjectForm divisions={divisions} />
         </Card>
       )}
 
@@ -178,6 +179,7 @@ export default async function ProjectsPage({ searchParams }) {
         value={filters}
         projects={projectOpts}
         people={people.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
+        divisions={divisions}
         canSeeAll={user.can("assignee:read")}
         showSearch
         searchPlaceholder="Search projects…"

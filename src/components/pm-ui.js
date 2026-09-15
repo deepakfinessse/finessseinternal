@@ -3,19 +3,23 @@ import { Chip } from "@/components/ui";
 
 /* --------------------------------------------------------- division colour */
 
-const DIVISION_HSL = {
-  "sem-social": "265 62% 63%",
-  "orm-content": "35 82% 56%",
-  "webdev-graphics": "150 46% 50%",
-};
-const DIVISION_ABBR = {
-  "sem-social": "SEM",
-  "orm-content": "CON",
-  "webdev-graphics": "WEB",
-};
+// Divisions are a dynamic, super-admin managed set (see src/lib/divisions.js),
+// so colour and the task-code abbreviation are derived deterministically from
+// the key rather than kept in a static map — new divisions just work.
+const DIVISION_HUES = [
+  "265 62% 63%", "35 82% 56%", "150 46% 50%", "197 71% 52%",
+  "12 65% 58%", "330 55% 60%", "220 55% 58%", "95 40% 48%",
+];
+
+function hashSeed(key = "") {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return h;
+}
 
 export function divisionHsl(key) {
-  return DIVISION_HSL[key] || "220 8% 55%";
+  if (!key) return "220 8% 55%";
+  return DIVISION_HUES[hashSeed(key) % DIVISION_HUES.length];
 }
 
 export function DivisionDot({ division, size = 7 }) {
@@ -38,7 +42,10 @@ export function DivisionLabel({ division, label }) {
 
 /** Deterministic display code, e.g. SEO-142 — used until real sequencing exists. */
 export function taskCode(task) {
-  const abbr = DIVISION_ABBR[task.division] || "TSK";
+  const parts = String(task.division || "").split("-").filter(Boolean);
+  const abbr = parts.length
+    ? (parts.length === 1 ? parts[0].slice(0, 3) : parts.map((p) => p[0]).join("").slice(0, 3)).toUpperCase()
+    : "TSK";
   const n = (parseInt(String(task.id).slice(-4), 16) % 900) + 100;
   return `${abbr}-${n}`;
 }

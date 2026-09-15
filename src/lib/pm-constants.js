@@ -1,16 +1,5 @@
-// Agency divisions — fixed routing targets a project is assigned to.
-export const DIVISIONS = [
-  { key: "social-media", label: "Social Media" },
-  { key: "seo", label: "SEO" },
-  { key: "webdev", label: "Web Development" },
-  { key: "graphics-designing", label: "Graphic Designing" },
-  { key: "orm", label: "ORM" },
-  { key: "content-writing", label: "Content Writing" },
-  
-];
-export const DIVISION_KEYS = DIVISIONS.map((d) => d.key);
-export const divisionLabel = (k) =>
-  DIVISIONS.find((d) => d.key === k)?.label || k || "—";
+// Agency divisions are dynamic (super-admin managed) — see src/lib/divisions.js.
+// The default seed for a fresh database lives in src/lib/db.js.
 
 export const PROJECT_STATUSES = ["onboarding", "active", "paused", "completed", "archived"];
 

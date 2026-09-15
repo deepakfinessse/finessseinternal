@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Field, inputClass } from "@/components/ui";
-import { PRIORITIES, BLOCKER_KINDS, DIVISIONS } from "@/lib/pm-constants";
+import { PRIORITIES, BLOCKER_KINDS } from "@/lib/pm-constants";
 import {
   createTask,
   updateTask,
@@ -29,10 +29,10 @@ function toDateInput(iso) {
 
 /* ------------------------------------------------------------------ create */
 
-export function CreateTaskForm({ projects, people, defaultProjectId, canSchedule, canAssign }) {
+export function CreateTaskForm({ projects, people, allDivisions = [], defaultProjectId, canSchedule, canAssign }) {
   const [projectId, setProjectId] = useState(defaultProjectId || projects[0]?.id || "");
   const project = projects.find((p) => p.id === projectId);
-  const divisions = DIVISIONS.filter((d) => (project?.divisions || []).includes(d.key));
+  const divisions = allDivisions.filter((d) => (project?.divisions || []).includes(d.key));
 
   return (
     <ActionForm action={createTask} successMessage="Task created." className="flex flex-col gap-3">

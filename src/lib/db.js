@@ -22,11 +22,23 @@ export async function collections() {
     notifications: db.collection("notifications"),
     chatConversations: db.collection("chatConversations"),
     chatMessages: db.collection("chatMessages"),
+    divisions: db.collection("divisions"),
   };
 }
 
 /** Fixed id of the one team-wide channel — every active user is implicitly a member. */
 export const TEAM_GENERAL_ID = "team-general";
+
+// Seeded once into the `divisions` collection on a fresh database. After that,
+// divisions are fully super-admin managed (see src/lib/divisions.js).
+export const DEFAULT_DIVISIONS = [
+  { key: "social-media", label: "Social Media" },
+  { key: "seo", label: "SEO" },
+  { key: "webdev", label: "Web Development" },
+  { key: "graphics-designing", label: "Graphic Designing" },
+  { key: "orm", label: "ORM" },
+  { key: "content-writing", label: "Content Writing" },
+];
 
 export const DEFAULT_ONBOARDING = {
   _id: "onboarding",
@@ -75,6 +87,7 @@ export async function ensureDbReady() {
       c.chatConversations.createIndex({ key: 1 }, { unique: true }),
       c.chatConversations.createIndex({ participantIds: 1 }),
       c.chatMessages.createIndex({ conversationId: 1, createdAt: 1 }),
+      c.divisions.createIndex({ key: 1 }, { unique: true }),
     ]);
 
     const now = new Date();
@@ -91,6 +104,15 @@ export async function ensureDbReady() {
       { $setOnInsert: { ...DEFAULT_ONBOARDING, updatedAt: now } },
       { upsert: true },
     );
+
+    for (let i = 0; i < DEFAULT_DIVISIONS.length; i++) {
+      const d = DEFAULT_DIVISIONS[i];
+      await c.divisions.updateOne(
+        { key: d.key },
+        { $setOnInsert: { ...d, order: i, createdAt: now, updatedAt: now } },
+        { upsert: true },
+      );
+    }
 
     await c.chatConversations.updateOne(
       { _id: TEAM_GENERAL_ID },

@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/access";
 import { listTasks, statusHeatmap, listProjectOptions } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
-import { DIVISIONS, TASK_STATUSES, STATUS_LABEL, nowMs } from "@/lib/pm-constants";
+import { listDivisions } from "@/lib/divisions";
+import { TASK_STATUSES, STATUS_LABEL, nowMs } from "@/lib/pm-constants";
 import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-filters";
 import { PageHeader, EmptyState, Avatar } from "@/components/ui";
 import { DeliveryFilters } from "@/components/delivery-filters";
@@ -37,11 +38,12 @@ export default async function HeatmapPage({ searchParams }) {
     cookieValue: cookieStore.get(FILTER_COOKIE)?.value,
   });
 
-  const [tasks, people, projects, matrix] = await Promise.all([
+  const [tasks, people, projects, matrix, divisions] = await Promise.all([
     listTasks(user, filterListArgs(filters, user.id)),
     canSeeAll ? listUsers({ status: "active" }) : [],
     user.can("project:read") ? listProjectOptions() : [],
     view === "matrix" ? statusHeatmap() : null,
+    listDivisions(),
   ]);
 
   // people to show as rows — those with tasks, fall back to active users
@@ -99,7 +101,7 @@ export default async function HeatmapPage({ searchParams }) {
   const loadMax = Math.max(1, ...rows.flatMap((r) => Array.from({ length: WEEKS }, (_, wi) => loadFor(r.tasks, wi))));
 
   const matrixMax = matrix
-    ? Math.max(1, ...DIVISIONS.flatMap((d) => TASK_STATUSES.map((s) => matrix[d.key]?.[s] || 0)))
+    ? Math.max(1, ...divisions.flatMap((d) => TASK_STATUSES.map((s) => matrix[d.key]?.[s] || 0)))
     : 1;
 
   return (
@@ -110,6 +112,7 @@ export default async function HeatmapPage({ searchParams }) {
         value={filters}
         projects={projects}
         people={people.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
+        divisions={divisions}
         canSeeAll={canSeeAll}
       />
 
@@ -141,7 +144,7 @@ export default async function HeatmapPage({ searchParams }) {
               </tr>
             </thead>
             <tbody>
-              {DIVISIONS.map((d) => (
+              {divisions.map((d) => (
                 <tr key={d.key}>
                   <td className="whitespace-nowrap pr-3 text-dim">{d.label}</td>
                   {TASK_STATUSES.map((s) => {

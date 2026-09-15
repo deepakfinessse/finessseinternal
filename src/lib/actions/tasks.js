@@ -9,7 +9,6 @@ import { assertPermission, getCurrentUser } from "@/lib/access";
 import { writeAudit } from "@/lib/audit";
 import { notifyUser, notifyUsers, notifyByPermission } from "@/lib/notifications";
 import {
-  DIVISION_KEYS,
   PRIORITY_KEYS,
   TASK_STATUSES,
   canForward,
@@ -46,7 +45,7 @@ const TaskInput = z.object({
   projectId: z.string().min(1),
   title: z.string().min(2).max(200),
   description: z.string().max(5000).optional().default(""),
-  division: z.enum(DIVISION_KEYS),
+  division: z.string().min(1),
   priority: z.enum(PRIORITY_KEYS).default("medium"),
   assigneeId: z.string().optional().default(""),
   collaboratorIds: z.array(z.string()).optional().default([]),
