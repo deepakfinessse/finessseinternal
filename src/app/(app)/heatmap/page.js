@@ -41,7 +41,7 @@ export default async function HeatmapPage({ searchParams }) {
   const [tasks, people, projects, matrix, divisions] = await Promise.all([
     listTasks(user, filterListArgs(filters, user.id)),
     canSeeAll ? listUsers({ status: "active" }) : [],
-    user.can("project:read") ? listProjectOptions() : [],
+    user.can("project:read") ? listProjectOptions({ user }) : [],
     view === "matrix" ? statusHeatmap() : null,
     listDivisions(),
   ]);

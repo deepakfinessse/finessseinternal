@@ -33,6 +33,7 @@ function ProjectCard({ p }) {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="mono truncate text-[10px] uppercase tracking-[0.14em] text-faint">
+            {p.projectNumber ? `${p.projectNumber} · ` : ""}
             {p.client || "No client"}
           </div>
           <h3 className="mt-1 text-[17px] font-semibold tracking-[-0.02em]">
@@ -133,11 +134,11 @@ export default async function ProjectsPage({ searchParams }) {
     filters.to;
 
   const [allProjects, matchTasks, projectOpts, people, divisions] = await Promise.all([
-    listProjects({ divisions: filters.division, q: filters.q || undefined }),
+    listProjects({ user, divisions: filters.division, q: filters.q || undefined }),
     taskDims
       ? listTasks(user, filterListArgs({ ...filters, division: [], project: [] }, user.id))
       : null,
-    user.can("project:read") ? listProjectOptions() : [],
+    user.can("project:read") ? listProjectOptions({ user }) : [],
     user.can("assignee:read") ? listUsers({ status: "active" }) : [],
     listDivisions(),
   ]);
@@ -171,7 +172,7 @@ export default async function ProjectsPage({ searchParams }) {
 
       {showForm && (
         <Card title="Onboard a project" description="Project & division setup.">
-          <ProjectForm divisions={divisions} />
+          <ProjectForm divisions={divisions} people={people} />
         </Card>
       )}
 

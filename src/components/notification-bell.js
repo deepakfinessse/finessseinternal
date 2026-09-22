@@ -10,12 +10,14 @@ const POLL_MS = 12000;
 
 const TONE = {
   "task.blocked": "warn",
+  "task.overdue": "warn",
   "task.rejected": "warn",
   "task.unblocked": "ok",
   "task.approved": "ok",
   "task.approval_requested": "caution",
   "task.assigned": "accent",
   "task.collaborator_added": "accent",
+  "project.assigned": "accent",
   "task.reopened": "caution",
   "role.assigned": "accent",
   "invite.accepted": "ok",

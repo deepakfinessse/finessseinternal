@@ -8,6 +8,7 @@ import { collections } from "@/lib/db";
 import { assertPermission, getCurrentUser } from "@/lib/access";
 import { writeAudit } from "@/lib/audit";
 import { notifyUser, notifyUsers, notifyByPermission } from "@/lib/notifications";
+import { nextTaskNumber } from "@/lib/pm-ids";
 import {
   PRIORITY_KEYS,
   TASK_STATUSES,
@@ -37,6 +38,24 @@ async function loadActableTask(taskId, { need = "task:transition" } = {}) {
     return { error: "You can only act on tasks assigned to you." };
   }
   return { me, task, tasks, isOwner, privileged };
+}
+
+/** Notes and attachments: open to an admin (task:update) or the task's
+ *  assignee / a collaborator — no task:transition requirement. */
+async function loadContributableTask(taskId) {
+  const me = await getCurrentUser();
+  if (!me || me.status !== "active") return { error: "Not signed in." };
+  const { tasks } = await collections();
+  const task = await tasks.findOne({ _id: oid(taskId) });
+  if (!task) return { error: "Task not found." };
+
+  const isOwner =
+    String(task.assigneeId) === me.id ||
+    (task.collaboratorIds || []).some((c) => String(c) === me.id);
+  if (!me.can("task:update") && !isOwner) {
+    return { error: "You can only add to tasks assigned to you." };
+  }
+  return { me, task, tasks, isOwner };
 }
 
 /* ------------------------------------------------------------------- create */
@@ -81,10 +100,21 @@ export async function createTask(_prev, formData) {
   if (d.startDate && d.endDate && new Date(d.startDate) > new Date(d.endDate)) {
     return { ok: false, error: "Start date must be on or before the end date." };
   }
+  if (project.memberIds?.length) {
+    const allowed = new Set(project.memberIds.map(String));
+    if (d.assigneeId && !allowed.has(d.assigneeId)) {
+      return { ok: false, error: "Assignee must be a member of this project." };
+    }
+    if (d.collaboratorIds.some((c) => !allowed.has(c))) {
+      return { ok: false, error: "Collaborators must be members of this project." };
+    }
+  }
 
   const now = new Date();
+  const taskNumber = await nextTaskNumber(project);
   const res = await tasks.insertOne({
     projectId: project._id,
+    taskNumber,
     division: d.division,
     title: d.title,
     description: d.description,
@@ -99,9 +129,10 @@ export async function createTask(_prev, formData) {
     endDate: d.endDate ? new Date(d.endDate) : null,
     assigneeId: d.assigneeId ? oid(d.assigneeId) : null,
     collaboratorIds: d.collaboratorIds.map(oid),
-    attachments: [],
+    updates: [],
     blocker: null,
     completedAt: null,
+    overdueNotifiedAt: null,
     createdBy: oid(actor.id),
     createdAt: now,
     updatedAt: now,
@@ -111,7 +142,7 @@ export async function createTask(_prev, formData) {
     action: "task.create",
     targetType: "task",
     targetId: res.insertedId,
-    meta: { title: d.title, project: project.name, division: d.division },
+    meta: { title: d.title, taskNumber, project: project.name, division: d.division },
   });
   if (d.assigneeId) {
     await notifyUser({
@@ -132,7 +163,7 @@ export async function createTask(_prev, formData) {
 export async function updateTask(_prev, formData) {
   const actor = await assertPermission("task:update");
   const id = String(formData.get("id") || "");
-  const { tasks } = await collections();
+  const { tasks, projects } = await collections();
   const task = await tasks.findOne({ _id: oid(id) });
   if (!task) return { ok: false, error: "Task not found." };
 
@@ -152,6 +183,13 @@ export async function updateTask(_prev, formData) {
   let newCollaborators = null;
   if (formData.has("collaboratorIds")) {
     const ids = formData.getAll("collaboratorIds").map(String).filter(Boolean);
+    const project = await projects.findOne({ _id: task.projectId });
+    if (project?.memberIds?.length) {
+      const allowed = new Set(project.memberIds.map(String));
+      if (ids.some((c) => !allowed.has(c))) {
+        return { ok: false, error: "Collaborators must be members of this project." };
+      }
+    }
     newCollaborators = ids;
     patch.collaboratorIds = ids.map(oid);
   }
@@ -194,6 +232,9 @@ export async function scheduleTask(_prev, formData) {
       $set: {
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
+        // A new deadline clears any prior overdue alert, so a task that
+        // slips again under its new date gets a fresh one.
+        overdueNotifiedAt: null,
         updatedAt: new Date(),
       },
     },
@@ -213,13 +254,17 @@ export async function assignTask(_prev, formData) {
   const actor = await assertPermission("task:assign");
   const id = String(formData.get("id") || "");
   const assigneeId = String(formData.get("assigneeId") || "");
-  const { tasks, users } = await collections();
+  const { tasks, users, projects } = await collections();
   const task = await tasks.findOne({ _id: oid(id) });
   if (!task) return { ok: false, error: "Task not found." };
   if (assigneeId) {
     const u = await users.findOne({ _id: oid(assigneeId) });
     if (!u) return { ok: false, error: "User not found." };
     if (u.status !== "active") return { ok: false, error: "That user is not active." };
+    const project = await projects.findOne({ _id: task.projectId });
+    if (project?.memberIds?.length && !project.memberIds.some((m) => String(m) === assigneeId)) {
+      return { ok: false, error: "Assignee must be a member of this project." };
+    }
   }
   await tasks.updateOne(
     { _id: task._id },
@@ -264,55 +309,80 @@ export async function setTaskClientVisible(_prev, formData) {
   return { ok: true };
 }
 
-/* --------------------------------------------------------------- attachments */
+/* --------------------------------------------------------------------- updates */
 
-export async function addAttachment(_prev, formData) {
-  const actor = await assertPermission("task:update");
+/**
+ * A single entry in the task's chat-style thread: a message, a file/link, or
+ * both together in one post. Open to the same audience — admin (task:update),
+ * or the task's assignee / a collaborator.
+ */
+export async function addTaskUpdate(_prev, formData) {
   const id = String(formData.get("id") || "");
-  const parsed = z
-    .object({
-      type: z.enum(["file", "gdoc"]),
-      label: z.string().min(1).max(200),
-      url: z.string().url().max(1000),
-    })
-    .safeParse({
-      type: formData.get("type") || "gdoc",
-      label: formData.get("label"),
-      url: formData.get("url"),
-    });
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message || "Invalid attachment" };
+  const text = String(formData.get("text") || "").trim();
+  const attachLabel = String(formData.get("attachLabel") || "").trim();
+  const attachUrl = String(formData.get("attachUrl") || "").trim();
+  const attachType = String(formData.get("attachType") || "gdoc");
 
-  const { tasks } = await collections();
-  const task = await tasks.findOne({ _id: oid(id) });
-  if (!task) return { ok: false, error: "Task not found." };
+  const hasAttachment = !!(attachLabel || attachUrl);
+  if (!text && !hasAttachment) {
+    return { ok: false, error: "Write a message or attach a file/link." };
+  }
+  if (hasAttachment) {
+    if (!attachLabel || !attachUrl) {
+      return { ok: false, error: "A file/link needs both a label and a URL." };
+    }
+    if (!z.string().url().safeParse(attachUrl).success) {
+      return { ok: false, error: "That doesn't look like a valid URL." };
+    }
+    if (!["file", "gdoc"].includes(attachType)) {
+      return { ok: false, error: "Invalid attachment type." };
+    }
+  }
 
-  const attachment = {
+  const ctx = await loadContributableTask(id);
+  if (ctx.error) return { ok: false, error: ctx.error };
+  const { me, task, tasks } = ctx;
+
+  const entry = {
     id: randomUUID(),
-    ...parsed.data,
-    uploadedBy: oid(actor.id),
-    uploadedAt: new Date(),
+    text,
+    attachment: hasAttachment ? { type: attachType, label: attachLabel, url: attachUrl } : null,
+    by: oid(me.id),
+    at: new Date(),
   };
   await tasks.updateOne(
     { _id: task._id },
-    { $push: { attachments: attachment }, $set: { updatedAt: new Date() } },
+    { $push: { updates: entry }, $set: { updatedAt: new Date() } },
   );
-  await writeAudit({ actorId: actor.id, action: "task.attachment.add", targetType: "task", targetId: task._id, meta: { label: parsed.data.label } });
+  await writeAudit({
+    actorId: me.id,
+    action: "task.update.add",
+    targetType: "task",
+    targetId: task._id,
+    meta: { hasText: !!text, hasAttachment },
+  });
   bump([`/tasks/${id}`]);
   return { ok: true };
 }
 
-export async function removeAttachment(_prev, formData) {
-  const actor = await assertPermission("task:update");
+export async function removeTaskUpdate(_prev, formData) {
   const id = String(formData.get("id") || "");
-  const attId = String(formData.get("attId") || "");
-  const { tasks } = await collections();
-  const task = await tasks.findOne({ _id: oid(id) });
-  if (!task) return { ok: false, error: "Task not found." };
+  const updateId = String(formData.get("updateId") || "");
+  const ctx = await loadContributableTask(id);
+  if (ctx.error) return { ok: false, error: ctx.error };
+  const { me, task, tasks } = ctx;
+
+  const entry = (task.updates || []).find((e) => e.id === updateId);
+  if (!entry) return { ok: false, error: "Not found." };
+  if (!me.can("task:update") && String(entry.by) !== me.id) {
+    return { ok: false, error: "You can only remove your own posts." };
+  }
+
   await tasks.updateOne(
     { _id: task._id },
-    { $pull: { attachments: { id: attId } }, $set: { updatedAt: new Date() } },
+    { $pull: { updates: { id: updateId } }, $set: { updatedAt: new Date() } },
   );
-  await writeAudit({ actorId: actor.id, action: "task.attachment.remove", targetType: "task", targetId: task._id, meta: { attId } });
+  await writeAudit({ actorId: me.id, action: "task.update.remove", targetType: "task", targetId: task._id, meta: { updateId } });
   bump([`/tasks/${id}`]);
   return { ok: true };
 }
@@ -396,6 +466,16 @@ export async function raiseBlocker(_prev, formData) {
   });
   await notifyUsers({
     userIds: [task.assigneeId, ...(task.collaboratorIds || [])].filter(Boolean).map(String),
+    actorId: me.id,
+    type: "task.blocked",
+    title: `Blocked: ${task.title}`,
+    body: parsed.data.description,
+    link: `/tasks/${id}`,
+  });
+  // Blockers need someone who can unblock or approve around it — loop in
+  // managers/admins (task:approve holders), not just the task's own people.
+  await notifyByPermission({
+    permission: "task:approve",
     actorId: me.id,
     type: "task.blocked",
     title: `Blocked: ${task.title}`,
@@ -587,6 +667,7 @@ export async function reopenTask(_prev, formData) {
         status: "in_progress",
         approval: "none",
         completedAt: null,
+        overdueNotifiedAt: null,
         updatedAt: new Date(),
       },
     },
@@ -679,7 +760,7 @@ export async function moveTask(_prev, formData) {
     const status = to === "in_review" ? "in_review" : to === "open" ? "open" : "in_progress";
     await tasks.updateOne(
       { _id: task._id },
-      { $set: { status, approval: "none", completedAt: null, updatedAt: now } },
+      { $set: { status, approval: "none", completedAt: null, overdueNotifiedAt: null, updatedAt: now } },
     );
     if (task.assigneeId) {
       await notifyUser({

@@ -34,7 +34,31 @@ function DivisionPicker({ divisions = [], selected = [] }) {
   );
 }
 
-export function ProjectForm({ project, divisions = [] }) {
+function PeoplePicker({ people = [], selected = [] }) {
+  return (
+    <Field label="Assign people" hint="Selected people are notified by email and in-app.">
+      <div className="flex flex-wrap gap-2">
+        {people.length === 0 && <span className="text-sm text-gray">No people available.</span>}
+        {people.map((u) => (
+          <label
+            key={u.id}
+            className="flex items-center gap-1.5 rounded-lg border border-gray/25 px-2.5 py-1 text-sm"
+          >
+            <input
+              type="checkbox"
+              name="memberIds"
+              value={u.id}
+              defaultChecked={selected.includes(u.id)}
+            />
+            {u.name || u.email}
+          </label>
+        ))}
+      </div>
+    </Field>
+  );
+}
+
+export function ProjectForm({ project, divisions = [], people = [] }) {
   const editing = !!project;
   return (
     <ActionForm
@@ -51,10 +75,16 @@ export function ProjectForm({ project, divisions = [] }) {
           <input name="client" defaultValue={project?.client || ""} className={inputClass} />
         </Field>
       </div>
+      {editing && (
+        <Field label="Project number" hint="Generated automatically, cannot be changed.">
+          <input value={project.projectNumber} className={inputClass} disabled />
+        </Field>
+      )}
       <Field label="Description">
         <textarea name="description" rows={3} defaultValue={project?.description || ""} className={inputClass} />
       </Field>
       <DivisionPicker divisions={divisions} selected={project?.divisions || []} />
+      <PeoplePicker people={people} selected={project?.memberIds || []} />
       {/* <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="clientVisible" defaultChecked={project?.clientVisible} />
         Visible to client

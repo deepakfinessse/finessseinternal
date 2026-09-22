@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Field, inputClass } from "@/components/ui";
+import { Icon } from "@/components/icons";
 import { PRIORITIES, BLOCKER_KINDS } from "@/lib/pm-constants";
 import {
   createTask,
   updateTask,
   scheduleTask,
   assignTask,
-  addAttachment,
-  removeAttachment,
+  addTaskUpdate,
+  removeTaskUpdate,
   setTaskClientVisible,
   transitionTask,
   raiseBlocker,
@@ -33,6 +34,11 @@ export function CreateTaskForm({ projects, people, allDivisions = [], defaultPro
   const [projectId, setProjectId] = useState(defaultProjectId || projects[0]?.id || "");
   const project = projects.find((p) => p.id === projectId);
   const divisions = allDivisions.filter((d) => (project?.divisions || []).includes(d.key));
+  // Restrict to the project's assigned team — unless it has none yet, in
+  // which case fall back to everyone so untriaged projects aren't a dead end.
+  const projectPeople = project?.memberIds?.length
+    ? people.filter((u) => project.memberIds.includes(u.id))
+    : people;
 
   return (
     <ActionForm action={createTask} successMessage="Task created." className="flex flex-col gap-3">
@@ -90,10 +96,13 @@ export function CreateTaskForm({ projects, people, allDivisions = [], defaultPro
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Assignee (executor)">
+        <Field
+          label="Assignee (executor)"
+          hint={project?.memberIds?.length ? "Limited to people assigned to this project" : ""}
+        >
           <select name="assigneeId" className={inputClass} disabled={!canAssign} defaultValue="">
             <option value="">— unassigned —</option>
-            {people.map((u) => (
+            {projectPeople.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name || u.email}
               </option>
@@ -102,7 +111,7 @@ export function CreateTaskForm({ projects, people, allDivisions = [], defaultPro
         </Field>
         <Field label="Collaborators (contributors)" hint="Ctrl/Cmd-click for multiple">
           <select name="collaboratorIds" multiple className={`${inputClass} h-24`}>
-            {people.map((u) => (
+            {projectPeople.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name || u.email}
               </option>
@@ -194,31 +203,57 @@ export function AssignForm({ task, people }) {
   );
 }
 
-/* --------------------------------------------------------------- attachments */
+/* ----------------------------------------------------------------- updates */
 
-export function AttachmentForm({ taskId }) {
+/**
+ * One composer, one submit — a message and an attached file/link go up
+ * together as a single post. The attachment fields stay collapsed until
+ * asked for, so the common case (just a message) reads as one input.
+ */
+export function UpdateComposer({ taskId }) {
+  const [attaching, setAttaching] = useState(false);
   return (
-    <ActionForm action={addAttachment} hidden={{ id: taskId }} successMessage="Attachment added." className="flex flex-wrap items-end gap-2">
-      <Field label="Type">
-        <select name="type" defaultValue="gdoc" className={inputClass}>
-          <option value="gdoc">Google Docs link</option>
-          <option value="file">File URL</option>
-        </select>
-      </Field>
-      <Field label="Label">
-        <input name="label" className={inputClass} required />
-      </Field>
-      <Field label="URL">
-        <input name="url" type="url" className={inputClass} required placeholder="https://…" />
-      </Field>
-      <SubmitButton variant="secondary">Add</SubmitButton>
+    <ActionForm
+      action={addTaskUpdate}
+      hidden={{ id: taskId }}
+      className="flex flex-col gap-2"
+      onDone={() => setAttaching(false)}
+    >
+      <div className="flex items-start gap-2">
+        <input name="text" placeholder="Write a message…" className={inputClass} />
+        <SubmitButton variant="secondary">Post</SubmitButton>
+      </div>
+      <button
+        type="button"
+        onClick={() => setAttaching((a) => !a)}
+        className="inline-flex w-fit items-center gap-1.5 text-[12px] text-dim hover:text-text"
+      >
+        <Icon name="link" size={13} />
+        {attaching ? "Remove attachment" : "Attach a file or link"}
+      </button>
+      {attaching && (
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="Type">
+            <select name="attachType" defaultValue="gdoc" className={inputClass}>
+              <option value="gdoc">Google Docs link</option>
+              <option value="file">File URL</option>
+            </select>
+          </Field>
+          <Field label="Label">
+            <input name="attachLabel" className={inputClass} placeholder="What is it?" />
+          </Field>
+          <Field label="URL">
+            <input name="attachUrl" type="url" className={inputClass} placeholder="https://…" />
+          </Field>
+        </div>
+      )}
     </ActionForm>
   );
 }
 
-export function RemoveAttachmentButton({ taskId, attId }) {
+export function RemoveUpdateButton({ taskId, updateId }) {
   return (
-    <ActionForm action={removeAttachment} hidden={{ id: taskId, attId }}>
+    <ActionForm action={removeTaskUpdate} hidden={{ id: taskId, updateId }}>
       <SubmitButton variant="ghost">Remove</SubmitButton>
     </ActionForm>
   );

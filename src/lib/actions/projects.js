@@ -6,8 +6,12 @@ import { z } from "zod";
 import { collections } from "@/lib/db";
 import { assertPermission } from "@/lib/access";
 import { writeAudit } from "@/lib/audit";
+import { sendMail } from "@/lib/mail";
+import { baseUrl } from "@/lib/base-url";
+import { notifyUsers } from "@/lib/notifications";
 import { PROJECT_STATUSES } from "@/lib/pm-constants";
 import { divisionKeys } from "@/lib/divisions";
+import { nextProjectNumber } from "@/lib/pm-ids";
 
 const oid = (id) => new ObjectId(String(id));
 
@@ -16,6 +20,7 @@ const ProjectInput = z.object({
   client: z.string().max(120).optional().default(""),
   description: z.string().max(2000).optional().default(""),
   divisions: z.array(z.string()).min(1, "Assign at least one division"),
+  memberIds: z.array(z.string()).optional().default([]),
   clientVisible: z.boolean().optional().default(false),
 });
 
@@ -25,6 +30,43 @@ async function assertKnownDivisions(keys) {
   return unknown.length ? `Unknown division: ${unknown.join(", ")}` : null;
 }
 
+/** Resolves submitted member ids to real, active users — silently drops the rest. */
+async function resolveMembers(ids) {
+  if (!ids.length) return [];
+  const { users } = await collections();
+  return users
+    .find({ _id: { $in: ids.filter((id) => ObjectId.isValid(id)).map(oid) }, status: "active" })
+    .toArray();
+}
+
+/** Emails + notifies newly assigned project members. Never throws into the caller. */
+async function announceMembers({ members, project, actorId }) {
+  if (!members.length) return;
+  const link = `${await baseUrl()}/projects/${project.id}`;
+  await notifyUsers({
+    userIds: members.map((u) => String(u._id)),
+    actorId,
+    type: "project.assigned",
+    title: `You were added to project: ${project.name}`,
+    body: project.client ? `Client: ${project.client}` : "",
+    link,
+  });
+  await Promise.all(
+    members.map((u) =>
+      sendMail({
+        to: u.email,
+        subject: `You've been added to project: ${project.name}`,
+        text: `You've been added to the "${project.name}" project${
+          project.client ? ` for ${project.client}` : ""
+        } (${project.projectNumber}).\n\nView it: ${link}`,
+        html: `<p>You've been added to the <strong>${project.name}</strong> project${
+          project.client ? ` for ${project.client}` : ""
+        } (${project.projectNumber}).</p><p><a href="${link}">Open the project</a>.</p>`,
+      }),
+    ),
+  );
+}
+
 export async function createProject(_prev, formData) {
   const actor = await assertPermission("project:create");
   const parsed = ProjectInput.safeParse({
@@ -32,6 +74,7 @@ export async function createProject(_prev, formData) {
     client: formData.get("client") || "",
     description: formData.get("description") || "",
     divisions: formData.getAll("divisions").map(String),
+    memberIds: formData.getAll("memberIds").map(String).filter(Boolean),
     clientVisible: formData.get("clientVisible") === "on",
   });
   if (!parsed.success) {
@@ -39,10 +82,21 @@ export async function createProject(_prev, formData) {
   }
   const divErr = await assertKnownDivisions(parsed.data.divisions);
   if (divErr) return { ok: false, error: divErr };
+  const { name, client, description, divisions, memberIds, clientVisible } = parsed.data;
+
+  const members = await resolveMembers(memberIds);
   const { projects } = await collections();
   const now = new Date();
+  const projectNumber = await nextProjectNumber(name);
   const res = await projects.insertOne({
-    ...parsed.data,
+    name,
+    client,
+    description,
+    divisions,
+    memberIds: members.map((u) => u._id),
+    clientVisible,
+    projectNumber,
+    taskSeq: 0,
     status: "onboarding",
     ownerId: oid(actor.id),
     createdBy: oid(actor.id),
@@ -55,7 +109,12 @@ export async function createProject(_prev, formData) {
     action: "project.create",
     targetType: "project",
     targetId: res.insertedId,
-    meta: { name: parsed.data.name, divisions: parsed.data.divisions },
+    meta: { name, projectNumber, divisions, memberIds: members.map((u) => String(u._id)) },
+  });
+  await announceMembers({
+    members,
+    project: { id: String(res.insertedId), name, client, projectNumber },
+    actorId: actor.id,
   });
   revalidatePath("/projects");
   return { ok: true, id: String(res.insertedId), redirect: `/projects/${res.insertedId}` };
@@ -69,6 +128,7 @@ export async function updateProject(_prev, formData) {
     client: formData.get("client") || "",
     description: formData.get("description") || "",
     divisions: formData.getAll("divisions").map(String),
+    memberIds: formData.getAll("memberIds").map(String).filter(Boolean),
     clientVisible: formData.get("clientVisible") === "on",
   });
   if (!parsed.success) {
@@ -76,20 +136,41 @@ export async function updateProject(_prev, formData) {
   }
   const divErr = await assertKnownDivisions(parsed.data.divisions);
   if (divErr) return { ok: false, error: divErr };
+  const { name, client, description, divisions, memberIds, clientVisible } = parsed.data;
+
   const { projects } = await collections();
   const p = await projects.findOne({ _id: oid(id) });
   if (!p) return { ok: false, error: "Project not found." };
 
+  const members = await resolveMembers(memberIds);
+  const before = new Set((p.memberIds || []).map(String));
+  const added = members.filter((u) => !before.has(String(u._id)));
+
   await projects.updateOne(
     { _id: p._id },
-    { $set: { ...parsed.data, updatedAt: new Date() } },
+    {
+      $set: {
+        name,
+        client,
+        description,
+        divisions,
+        memberIds: members.map((u) => u._id),
+        clientVisible,
+        updatedAt: new Date(),
+      },
+    },
   );
   await writeAudit({
     actorId: actor.id,
     action: "project.update",
     targetType: "project",
     targetId: p._id,
-    meta: { divisions: parsed.data.divisions },
+    meta: { divisions, memberIds: members.map((u) => String(u._id)) },
+  });
+  await announceMembers({
+    members: added,
+    project: { id, name, client, projectNumber: p.projectNumber },
+    actorId: actor.id,
   });
   revalidatePath("/projects");
   revalidatePath(`/projects/${id}`);

@@ -68,7 +68,7 @@ export default async function TimelinePage({ searchParams }) {
 
   const [allTasks, projects, people, divisions, dmap] = await Promise.all([
     listTasks(user, filterListArgs(filters, user.id)),
-    user.can("project:read") ? listProjectOptions() : [],
+    user.can("project:read") ? listProjectOptions({ user }) : [],
     canSeeAll ? listUsers({ status: "active" }) : [],
     listDivisions(),
     divisionLabelMap(),

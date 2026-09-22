@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/access";
-import { getTask } from "@/lib/pm-data";
+import { getTask, getProject } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
 import { listAudit } from "@/lib/audit";
 import { STATUS_LABEL } from "@/lib/pm-constants";
@@ -19,8 +19,8 @@ import {
   TaskEditForm,
   ScheduleForm,
   AssignForm,
-  AttachmentForm,
-  RemoveAttachmentButton,
+  RemoveUpdateButton,
+  UpdateComposer,
   ClientVisibleToggle,
   DeleteTaskButton,
 } from "../task-forms";
@@ -40,13 +40,23 @@ export default async function TaskDetailPage({ params }) {
   const canApprove = user.can("task:approve");
   const canDelete = user.can("task:delete");
   const canSeePeople = canEdit || canAssign;
+  const isOwner =
+    task.assignee?.id === user.id || task.collaborators.some((c) => c.id === user.id);
+  // Notes & attachments: admins, plus the person the task is actually for.
+  const canContribute = canEdit || isOwner;
 
-  const [people, activity] = await Promise.all([
+  const [allPeople, project, activity] = await Promise.all([
     canSeePeople ? listUsers({ status: "active" }) : [],
+    canSeePeople ? getProject(user, task.projectId) : null,
     user.can("audit:read")
       ? listAudit({ targetType: "task", targetId: id, limit: 40 })
       : [],
   ]);
+  // Restrict to the project's assigned team — unless it has none yet, in
+  // which case fall back to everyone so untriaged projects aren't a dead end.
+  const people = project?.memberIds?.length
+    ? allPeople.filter((u) => project.memberIds.includes(u.id))
+    : allPeople;
 
   return (
     <div className="flex flex-col gap-6">
@@ -100,30 +110,39 @@ export default async function TaskDetailPage({ params }) {
             </Card>
           )}
 
-          <Card
-            title="Attachments"
-            description="Files & Google Docs links (section 3)."
-          >
-            {task.attachments.length === 0 ? (
-              <p className="text-sm text-gray">None.</p>
+          <Card title="Updates" description="Messages and files, in one thread.">
+            {task.updates.length === 0 ? (
+              <p className="text-sm text-gray">No updates yet.</p>
             ) : (
-              <ul className="flex flex-col divide-y divide-gray/15 text-sm">
-                {task.attachments.map((a) => (
-                  <li key={a.id} className="flex items-center justify-between gap-3 py-2">
-                    <a href={a.url} target="_blank" rel="noreferrer" className="min-w-0 truncate text-primary hover:underline">
-                      {a.type === "gdoc" ? "📄" : "📎"} {a.label}
-                    </a>
-                    <span className="flex items-center gap-2 text-xs text-gray">
-                      {fmtDate(a.uploadedAt)}
-                      {canEdit && <RemoveAttachmentButton taskId={task.id} attId={a.id} />}
-                    </span>
+              <ul className="flex flex-col gap-3">
+                {task.updates.map((entry) => (
+                  <li key={entry.id} className="text-[13px] leading-relaxed">
+                    <div className="mb-0.5 flex items-center gap-1.5 text-[11px] text-faint">
+                      <span className="font-semibold text-dim">{entry.by?.name || entry.by?.email || "Someone"}</span>
+                      <span>·</span>
+                      <span>{fmtDateTime(entry.at)}</span>
+                      {(canEdit || entry.by?.id === user.id) && (
+                        <RemoveUpdateButton taskId={task.id} updateId={entry.id} />
+                      )}
+                    </div>
+                    {entry.text && <p className="whitespace-pre-wrap">{entry.text}</p>}
+                    {entry.attachment && (
+                      <a
+                        href={entry.attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-flex min-w-0 items-center gap-1 truncate text-primary hover:underline"
+                      >
+                        {entry.attachment.type === "gdoc" ? "📄" : "📎"} {entry.attachment.label}
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
-            {canEdit && (
+            {canContribute && (
               <div className="mt-3 border-t border-gray/15 pt-3">
-                <AttachmentForm taskId={task.id} />
+                <UpdateComposer taskId={task.id} />
               </div>
             )}
           </Card>
@@ -134,7 +153,9 @@ export default async function TaskDetailPage({ params }) {
               <ul className="mt-3 flex flex-col gap-1.5 text-xs text-gray">
                 {task.blocker.log.map((l, i) => (
                   <li key={i}>
-                    <span className="text-foreground">{fmtDateTime(l.at)}</span> — {l.note}
+                    <span className="text-foreground">{fmtDateTime(l.at)}</span>
+                    {" · "}
+                    {l.by?.name || l.by?.email || "Someone"} — {l.note}
                   </li>
                 ))}
               </ul>

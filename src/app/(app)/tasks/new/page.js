@@ -13,7 +13,7 @@ export default async function NewTaskPage({ searchParams }) {
   const sp = await searchParams;
 
   const [projects, people, divisions] = await Promise.all([
-    listProjects(),
+    listProjects({ user }),
     listUsers({ status: "active" }),
     listDivisions(),
   ]);

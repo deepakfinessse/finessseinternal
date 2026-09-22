@@ -23,6 +23,7 @@ export async function collections() {
     chatConversations: db.collection("chatConversations"),
     chatMessages: db.collection("chatMessages"),
     divisions: db.collection("divisions"),
+    counters: db.collection("counters"),
   };
 }
 
@@ -82,6 +83,7 @@ export async function ensureDbReady() {
       c.tasks.createIndex({ collaboratorIds: 1 }),
       c.tasks.createIndex({ endDate: 1 }),
       c.tasks.createIndex({ "approval.state": 1 }),
+      c.tasks.createIndex({ status: 1, endDate: 1, overdueNotifiedAt: 1 }),
       c.notifications.createIndex({ userId: 1, createdAt: -1 }),
       c.notifications.createIndex({ userId: 1, read: 1 }),
       c.chatConversations.createIndex({ key: 1 }, { unique: true }),

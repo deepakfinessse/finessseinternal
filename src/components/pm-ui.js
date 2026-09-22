@@ -40,8 +40,12 @@ export function DivisionLabel({ division, label }) {
   );
 }
 
-/** Deterministic display code, e.g. SEO-142 — used until real sequencing exists. */
+/**
+ * Display code — the task's real, persisted number (e.g. WEB001-01). Falls
+ * back to a deterministic guess for tasks created before numbering existed.
+ */
 export function taskCode(task) {
+  if (task.taskNumber) return task.taskNumber;
   const parts = String(task.division || "").split("-").filter(Boolean);
   const abbr = parts.length
     ? (parts.length === 1 ? parts[0].slice(0, 3) : parts.map((p) => p[0]).join("").slice(0, 3)).toUpperCase()

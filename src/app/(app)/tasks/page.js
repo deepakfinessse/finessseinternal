@@ -29,7 +29,7 @@ export default async function BoardPage({ searchParams }) {
     listTasks(user, filterListArgs(filters, user.id)),
     taskStats(user),
     canSeeAll ? listUsers({ status: "active" }) : [],
-    user.can("project:read") ? listProjectOptions() : [],
+    user.can("project:read") ? listProjectOptions({ user }) : [],
     listDivisions(),
   ]);
 

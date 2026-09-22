@@ -2,25 +2,17 @@
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { collections } from "@/lib/db";
 import { assertPermission, getCurrentUser } from "@/lib/access";
 import { writeAudit } from "@/lib/audit";
 import { sendMail } from "@/lib/mail";
+import { baseUrl } from "@/lib/base-url";
 import { WORKSPACE_DOMAIN } from "@/auth";
 
 const oid = (id) => new ObjectId(String(id));
 const INVITE_TTL_DAYS = 14;
-
-async function baseUrl() {
-  if (process.env.AUTH_URL) return process.env.AUTH_URL.replace(/\/$/, "");
-  const h = await headers();
-  const host = h.get("x-forwarded-host") || h.get("host");
-  const proto = h.get("x-forwarded-proto") || "http";
-  return `${proto}://${host}`;
-}
 
 const InviteInput = z.object({
   email: z.string().email(),

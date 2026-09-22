@@ -47,18 +47,23 @@ export async function notifyUsers({ userIds = [], actorId = null, ...rest }) {
   await Promise.all(unique.map((userId) => notifyUser({ userId, actorId, ...rest })));
 }
 
+/** Active users holding a given permission (e.g. "task:approve") — full docs,
+ *  for callers that need more than an in-app ping (e.g. an email address). */
+export async function usersByPermission(permission) {
+  const { users, roles } = await collections();
+  const roleDocs = await roles.find({ permissions: { $exists: true } }).toArray();
+  const roleIds = roleDocs
+    .filter((r) => (r.permissions || []).some((g) => permissionMatches(g, permission)))
+    .map((r) => r._id);
+  if (!roleIds.length) return [];
+  return users.find({ roleIds: { $in: roleIds }, status: "active" }).toArray();
+}
+
 /** Notify everyone holding a given permission (e.g. "task:approve"). */
 export async function notifyByPermission({ permission, actorId = null, ...rest }) {
   try {
-    const { users, roles } = await collections();
-    const roleDocs = await roles.find({ permissions: { $exists: true } }).toArray();
-    const roleIds = roleDocs
-      .filter((r) => (r.permissions || []).some((g) => permissionMatches(g, permission)))
-      .map((r) => r._id);
-    if (!roleIds.length) return;
-    const holders = await users
-      .find({ roleIds: { $in: roleIds }, status: "active" }, { projection: { _id: 1 } })
-      .toArray();
+    const holders = await usersByPermission(permission);
+    if (!holders.length) return;
     await notifyUsers({ userIds: holders.map((u) => u._id), actorId, ...rest });
   } catch (err) {
     console.error("[notifications] notifyByPermission failed", permission, err);

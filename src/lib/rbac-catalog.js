@@ -12,7 +12,8 @@ export const PERMISSION_CATALOG = [
   { key: "onboarding:view", group: "Onboarding", description: "View onboarding progress" },
   { key: "onboarding:manage", group: "Onboarding", description: "Configure onboarding steps and resend invites" },
 
-  { key: "project:read", group: "Projects", description: "View projects and their divisions" },
+  { key: "project:read", group: "Projects", description: "View projects you're assigned to (a team member on, or with a task in)" },
+  { key: "project:read:all", group: "Projects", description: "View every project across the workspace" },
   { key: "project:create", group: "Projects", description: "Onboard a new project" },
   { key: "project:update", group: "Projects", description: "Edit project details, divisions, status" },
   { key: "project:delete", group: "Projects", description: "Archive or delete projects" },
@@ -97,6 +98,7 @@ export const SYSTEM_ROLES = [
       "onboarding:view",
       "onboarding:manage",
       "project:read",
+      "project:read:all",
       "project:create",
       "project:update",
       "task:read:all",

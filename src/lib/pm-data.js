@@ -10,14 +10,30 @@ const divLabel = (dmap, k) => dmap[k] || k || "—";
 
 /* ------------------------------------------------------------------ projects */
 
+/**
+ * Mongo filter limiting projects to ones a user may see: a project they're a
+ * team member on, or one they hold a task in. `{}` (everything) for holders
+ * of `project:read:all`.
+ */
+async function projectScopeFilter(user) {
+  if (!user || user.can("project:read:all") || user.can("*")) return {};
+  const { tasks } = await collections();
+  const myProjectIds = await tasks.distinct("projectId", {
+    $or: [{ assigneeId: oid(user.id) }, { collaboratorIds: oid(user.id) }],
+  });
+  return { $or: [{ memberIds: oid(user.id) }, { _id: { $in: myProjectIds } }] };
+}
+
 export function serializeProject(p, taskCounts = {}, dmap = {}) {
   return {
     id: String(p._id),
     name: p.name,
+    projectNumber: p.projectNumber || "",
     client: p.client || "",
     description: p.description || "",
     divisions: p.divisions || [],
     divisionLabels: (p.divisions || []).map((k) => divLabel(dmap, k)),
+    memberIds: (p.memberIds || []).map(String),
     status: p.status || "onboarding",
     clientVisible: !!p.clientVisible,
     ownerId: p.ownerId ? String(p.ownerId) : null,
@@ -35,16 +51,26 @@ export function serializeProject(p, taskCounts = {}, dmap = {}) {
   };
 }
 
-export async function listProjects({ status, division, divisions, q } = {}) {
+export async function listProjects({ user, status, division, divisions, q } = {}) {
   const { projects, tasks, users } = await collections();
   const divList = [...(divisions || []), ...(division ? [division] : [])].filter(Boolean);
   const query = {};
   if (status) query.status = status;
   if (divList.length) query.divisions = { $in: divList };
-  if (q) query.$or = [
-    { name: { $regex: q, $options: "i" } },
-    { client: { $regex: q, $options: "i" } },
-  ];
+
+  const and = [];
+  if (q) {
+    and.push({
+      $or: [
+        { name: { $regex: q, $options: "i" } },
+        { client: { $regex: q, $options: "i" } },
+      ],
+    });
+  }
+  const scope = await projectScopeFilter(user);
+  if (scope.$or) and.push(scope);
+  if (and.length) query.$and = and;
+
   const docs = await projects.find(query).sort({ createdAt: -1, _id: -1 }).toArray();
   const ids = docs.map((d) => d._id);
   const dmap = await divisionLabelMap();
@@ -127,20 +153,22 @@ export async function listProjects({ status, division, divisions, q } = {}) {
 }
 
 /** Lightweight id + name list for filter menus. */
-export async function listProjectOptions() {
+export async function listProjectOptions({ user } = {}) {
   const { projects } = await collections();
+  const scope = await projectScopeFilter(user);
   const docs = await projects
-    .find({}, { projection: { name: 1 } })
+    .find(scope, { projection: { name: 1 } })
     .sort({ name: 1 })
     .toArray();
   return docs.map((p) => ({ id: String(p._id), name: p.name }));
 }
 
-export async function getProject(id) {
-  const { projects, tasks } = await collections();
+export async function getProject(user, id) {
+  const { projects, tasks, users } = await collections();
   let p;
   try {
-    p = await projects.findOne({ _id: oid(id) });
+    const scope = await projectScopeFilter(user);
+    p = await projects.findOne({ _id: oid(id), ...scope });
   } catch {
     return null;
   }
@@ -161,7 +189,19 @@ export async function getProject(id) {
     status: { $ne: "completed" },
     endDate: { $lt: new Date() },
   });
-  return serializeProject(p, counts, await divisionLabelMap());
+  const base = serializeProject(p, counts, await divisionLabelMap());
+  const memberDocs = base.memberIds.length
+    ? await users.find({ _id: { $in: base.memberIds.map(oid) } }).toArray()
+    : [];
+  return {
+    ...base,
+    members: memberDocs.map((u) => ({
+      id: String(u._id),
+      name: u.name || "",
+      email: u.email,
+      image: u.image || null,
+    })),
+  };
 }
 
 /* --------------------------------------------------------------------- tasks */
@@ -180,6 +220,7 @@ export function serializeTask(t, { project, users, dmap = {} } = {}) {
   };
   return {
     id: String(t._id),
+    taskNumber: t.taskNumber || "",
     projectId: String(t.projectId),
     project: project ? { id: String(project._id), name: project.name, client: project.client || "" } : null,
     division: t.division || null,
@@ -201,13 +242,18 @@ export function serializeTask(t, { project, users, dmap = {} } = {}) {
     overdue: isOverdue(t),
     assignee: u(t.assigneeId),
     collaborators: (t.collaboratorIds || []).map(u).filter(Boolean),
-    attachments: (t.attachments || []).map((a) => ({
-      id: a.id,
-      type: a.type,
-      label: a.label,
-      url: a.url,
-      uploadedAt: iso(a.uploadedAt),
+    // Chat-style thread: each entry is a message, a file/link, or both together.
+    updates: (t.updates || []).map((e) => ({
+      id: e.id,
+      text: e.text || "",
+      attachment: e.attachment
+        ? { type: e.attachment.type, label: e.attachment.label, url: e.attachment.url }
+        : null,
+      by: u(e.by),
+      at: iso(e.at),
     })),
+    // Derived count for the board card — every update that carries a file/link.
+    attachments: (t.updates || []).filter((e) => e.attachment).map((e) => ({ id: e.id })),
     blocker: t.blocker
       ? {
           active: !!t.blocker.active,
@@ -215,7 +261,7 @@ export function serializeTask(t, { project, users, dmap = {} } = {}) {
           kind: t.blocker.kind || "internal",
           raisedAt: iso(t.blocker.raisedAt),
           resolvedAt: iso(t.blocker.resolvedAt),
-          log: (t.blocker.log || []).map((l) => ({ at: iso(l.at), note: l.note, by: l.by ? String(l.by) : null })),
+          log: (t.blocker.log || []).map((l) => ({ at: iso(l.at), note: l.note, by: u(l.by) })),
         }
       : null,
     createdAt: iso(t.createdAt || t._id.getTimestamp()),
@@ -229,6 +275,8 @@ async function hydrateUsers(taskDocs) {
   for (const t of taskDocs) {
     if (t.assigneeId) ids.add(String(t.assigneeId));
     for (const c of t.collaboratorIds || []) ids.add(String(c));
+    for (const e of t.updates || []) if (e.by) ids.add(String(e.by));
+    for (const l of t.blocker?.log || []) if (l.by) ids.add(String(l.by));
   }
   if (!ids.size) return new Map();
   const docs = await users.find({ _id: { $in: [...ids].map(oid) } }).toArray();
