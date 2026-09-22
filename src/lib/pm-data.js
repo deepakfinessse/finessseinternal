@@ -254,6 +254,15 @@ export function serializeTask(t, { project, users, dmap = {} } = {}) {
     })),
     // Derived count for the board card — every update that carries a file/link.
     attachments: (t.updates || []).filter((e) => e.attachment).map((e) => ({ id: e.id })),
+    // Hours logged at each in_progress → in_review submission — task-level
+    // time management, visible to managers/admins (task:approve).
+    timeLogs: (t.timeLogs || []).map((l) => ({
+      hours: l.hours,
+      note: l.note || "",
+      loggedBy: u(l.loggedBy),
+      loggedAt: iso(l.loggedAt),
+    })),
+    totalLoggedHours: (t.timeLogs || []).reduce((sum, l) => sum + (l.hours || 0), 0),
     blocker: t.blocker
       ? {
           active: !!t.blocker.active,
@@ -277,6 +286,7 @@ async function hydrateUsers(taskDocs) {
     for (const c of t.collaboratorIds || []) ids.add(String(c));
     for (const e of t.updates || []) if (e.by) ids.add(String(e.by));
     for (const l of t.blocker?.log || []) if (l.by) ids.add(String(l.by));
+    for (const l of t.timeLogs || []) if (l.loggedBy) ids.add(String(l.loggedBy));
   }
   if (!ids.size) return new Map();
   const docs = await users.find({ _id: { $in: [...ids].map(oid) } }).toArray();

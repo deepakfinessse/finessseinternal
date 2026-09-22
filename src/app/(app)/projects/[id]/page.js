@@ -4,7 +4,7 @@ import { requirePermission, getCurrentUser } from "@/lib/access";
 import { getProject, listTasks } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
 import { listDivisions } from "@/lib/divisions";
-import { Card, Badge, Stat, EmptyState, LinkButton, AvatarStack, fmtDate } from "@/components/ui";
+import { Card, Badge, Stat, EmptyState, LinkButton, AvatarStack, fmtDate, fmtDateTime } from "@/components/ui";
 import { DivisionDot, TaskStatusBadge, PriorityChip, OverdueTag, taskCode } from "@/components/pm-ui";
 import { ProjectForm, ProjectStatusForm, DeleteProjectButton } from "../project-forms";
 
@@ -24,12 +24,34 @@ export default async function ProjectDetailPage({ params }) {
 
   const canEdit = user.can("project:update");
   const canCreateTask = user.can("task:create");
+  const canApprove = user.can("task:approve");
 
   const [tasks, divisions, people] = await Promise.all([
     listTasks(user, { projectId: id }),
     listDivisions(),
     canEdit && user.can("assignee:read") ? listUsers({ status: "active" }) : [],
   ]);
+
+  // Time log, project-wide: every hour entry across the project's tasks —
+  // `tasks` is already the full list here, since task:approve implies
+  // task:read:all. Same audience as the per-task "Time logged" card.
+  const timeLogEntries = canApprove
+    ? tasks
+        .flatMap((t) =>
+          (t.timeLogs || []).map((l) => ({ ...l, taskId: t.id, taskTitle: t.title, taskCode: taskCode(t) })),
+        )
+        .sort((a, b) => new Date(b.loggedAt) - new Date(a.loggedAt))
+    : [];
+  const totalProjectHours = timeLogEntries.reduce((sum, l) => sum + (l.hours || 0), 0);
+  const hoursByPerson = new Map();
+  for (const l of timeLogEntries) {
+    const key = l.loggedBy?.id || "unknown";
+    if (!hoursByPerson.has(key)) {
+      hoursByPerson.set(key, { user: l.loggedBy || { id: "unknown", name: "Unknown" }, hours: 0 });
+    }
+    hoursByPerson.get(key).hours += l.hours || 0;
+  }
+  const hoursByPersonRows = [...hoursByPerson.values()].sort((a, b) => b.hours - a.hours);
 
   return (
     <div className="flex flex-col gap-6">
@@ -125,6 +147,46 @@ export default async function ProjectDetailPage({ params }) {
               <ProjectStatusForm project={project} />
             </Card>
           )}
+
+          {canApprove && (
+            <Card title="Time log" description="Hours logged across this project's tasks.">
+              {timeLogEntries.length === 0 ? (
+                <p className="text-sm text-gray">No hours logged yet.</p>
+              ) : (
+                <>
+                  <div className="mb-3 flex items-baseline gap-1.5">
+                    <span className="text-[22px] font-semibold tabular-nums">{totalProjectHours}</span>
+                    <span className="text-[13px] text-dim">hour{totalProjectHours === 1 ? "" : "s"} total</span>
+                  </div>
+                  <ul className="mb-3 flex flex-col gap-1.5 border-t border-gray/15 pt-3 text-sm">
+                    {hoursByPersonRows.map((r) => (
+                      <li key={r.user.id} className="flex items-center justify-between">
+                        <span>{r.user.name || r.user.email || "Unknown"}</span>
+                        <span className="mono font-semibold tabular-nums">{r.hours}h</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <ul className="flex max-h-64 flex-col gap-2 overflow-y-auto border-t border-gray/15 pt-3 text-xs text-gray">
+                    {timeLogEntries.map((l, i) => (
+                      <li key={i}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-foreground">
+                            {l.taskCode} · {l.taskTitle}
+                          </span>
+                          <span className="mono font-semibold">{l.hours}h</span>
+                        </div>
+                        <div>
+                          {l.loggedBy?.name || l.loggedBy?.email || "Someone"} · {fmtDateTime(l.loggedAt)}
+                          {l.note && ` · ${l.note}`}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </Card>
+          )}
+
           <Card title="Team" description="People assigned to this project.">
             {project.members.length === 0 ? (
               <p className="text-sm text-gray">No one assigned yet.</p>

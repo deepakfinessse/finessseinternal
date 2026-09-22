@@ -44,6 +44,7 @@ export default async function AppLayout({ children }) {
           icon: "campaigns",
         },
         can("session:read") && { href: "/sessions", label: "Sessions", icon: "tools" },
+        can("attendance:track") && { href: "/attendance", label: "Attendance", icon: "clock" },
         { href: "/profile", label: "My profile", icon: "people" },
       ].filter(Boolean),
     },
@@ -127,7 +128,7 @@ export default async function AppLayout({ children }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar canCreateTask={can("task:create")} />
+        <Topbar canCreateTask={can("task:create")} canTrackAttendance={can("attendance:track")} />
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 md:px-8">
           {children}
         </main>

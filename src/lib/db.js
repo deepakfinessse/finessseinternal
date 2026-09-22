@@ -24,6 +24,7 @@ export async function collections() {
     chatMessages: db.collection("chatMessages"),
     divisions: db.collection("divisions"),
     counters: db.collection("counters"),
+    attendance: db.collection("attendance"),
   };
 }
 
@@ -90,6 +91,8 @@ export async function ensureDbReady() {
       c.chatConversations.createIndex({ participantIds: 1 }),
       c.chatMessages.createIndex({ conversationId: 1, createdAt: 1 }),
       c.divisions.createIndex({ key: 1 }, { unique: true }),
+      c.attendance.createIndex({ userId: 1, startedAt: -1 }),
+      c.attendance.createIndex({ userId: 1, status: 1 }),
     ]);
 
     const now = new Date();

@@ -130,6 +130,7 @@ export async function createTask(_prev, formData) {
     assigneeId: d.assigneeId ? oid(d.assigneeId) : null,
     collaboratorIds: d.collaboratorIds.map(oid),
     updates: [],
+    timeLogs: [],
     blocker: null,
     completedAt: null,
     overdueNotifiedAt: null,
@@ -398,6 +399,9 @@ export async function transitionTask(_prev, formData) {
 
   if (task.status === "blocked") return { ok: false, error: "Resolve the blocker first." };
   if (task.status === "completed") return { ok: false, error: "Task is completed. An admin can reopen it." };
+  if (task.status === "in_progress" && to === "in_review") {
+    return { ok: false, error: "Log your hours to submit for review." };
+  }
   if (!canForward(task.status, to)) {
     return { ok: false, error: `Can't move from ${task.status} to ${to}.` };
   }
@@ -412,6 +416,46 @@ export async function transitionTask(_prev, formData) {
     targetType: "task",
     targetId: task._id,
     meta: { from: task.status, to },
+  });
+  bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
+  return { ok: true };
+}
+
+/**
+ * The only door from in_progress to in_review — requires logging the hours
+ * spent, so managers/admins can see real time-on-task, not just lifecycle
+ * dates. Each submission appends a log entry (a task may be rejected and
+ * resubmitted more than once).
+ */
+export async function submitForReview(_prev, formData) {
+  const id = String(formData.get("id") || "");
+  const hours = Number(String(formData.get("hours") || "").trim());
+  const note = String(formData.get("note") || "").trim();
+  if (!Number.isFinite(hours) || hours <= 0 || hours > 24) {
+    return { ok: false, error: "Enter the hours you spent (0–24)." };
+  }
+
+  const ctx = await loadActableTask(id);
+  if (ctx.error) return { ok: false, error: ctx.error };
+  const { me, task, tasks } = ctx;
+  if (task.status !== "in_progress") {
+    return { ok: false, error: "Only an in-progress task can be submitted for review." };
+  }
+
+  const now = new Date();
+  await tasks.updateOne(
+    { _id: task._id },
+    {
+      $set: { status: "in_review", approval: "none", updatedAt: now },
+      $push: { timeLogs: { hours, note, loggedBy: oid(me.id), loggedAt: now } },
+    },
+  );
+  await writeAudit({
+    actorId: me.id,
+    action: "task.transition",
+    targetType: "task",
+    targetId: task._id,
+    meta: { from: "in_progress", to: "in_review", hours },
   });
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
   return { ok: true };
@@ -710,6 +754,9 @@ export async function moveTask(_prev, formData) {
 
   if (to === "blocked") {
     return { ok: false, error: "Open the task to raise a blocker with a reason." };
+  }
+  if (from === "in_progress" && to === "in_review") {
+    return { ok: false, error: "Open the task and log your hours to submit for review." };
   }
 
   const notifyOwners = (type, title, body) =>

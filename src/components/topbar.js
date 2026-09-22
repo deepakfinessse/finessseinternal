@@ -8,6 +8,7 @@ import { Kbd } from "@/components/ui";
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notification-bell";
 import { ChatBadge } from "@/components/chat-badge";
+import { AttendanceWidget } from "@/components/attendance-widget";
 
 const TITLES = [
   [/^\/dashboard/, "Pulse"],
@@ -29,6 +30,7 @@ const TITLES = [
   [/^\/settings\/onboarding/, "Onboarding steps"],
   [/^\/audit/, "Audit log"],
   [/^\/profile/, "My profile"],
+  [/^\/attendance/, "Attendance"],
 ];
 
 function titleFor(path) {
@@ -36,7 +38,7 @@ function titleFor(path) {
   return "Finessse";
 }
 
-export function Topbar({ canCreateTask }) {
+export function Topbar({ canCreateTask, canTrackAttendance }) {
   const router = useRouter();
   const pathname = usePathname();
   const inputRef = useRef(null);
@@ -88,6 +90,7 @@ export function Topbar({ canCreateTask }) {
       </form>
 
       <div className="flex shrink-0 items-center gap-2">
+        {canTrackAttendance && <AttendanceWidget />}
         <ChatBadge />
         <NotificationBell />
         {canCreateTask && (

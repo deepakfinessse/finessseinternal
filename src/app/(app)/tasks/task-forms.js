@@ -14,6 +14,7 @@ import {
   removeTaskUpdate,
   setTaskClientVisible,
   transitionTask,
+  submitForReview,
   raiseBlocker,
   appendBlockerNote,
   resolveBlocker,
@@ -282,6 +283,67 @@ export function DeleteTaskButton({ id }) {
 
 /* ------------------------------------------------------- lifecycle controls */
 
+/**
+ * Submitting for review requires logging hours spent — a popup collects them
+ * so managers/admins get real time-on-task, not just lifecycle timestamps.
+ */
+function SubmitForReviewButton({ taskId }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-white hover:opacity-90"
+      >
+        Submit for review
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-[14px] border border-line-strong bg-surface p-5 shadow-pop">
+            <h3 className="text-[15px] font-semibold">Log your hours</h3>
+            <p className="mt-1 text-[13px] text-dim">
+              How long did you spend on this task before it goes to review?
+            </p>
+            <ActionForm
+              action={submitForReview}
+              hidden={{ id: taskId }}
+              onDone={() => setOpen(false)}
+              className="mt-4 flex flex-col gap-3"
+            >
+              <Field label="Hours spent">
+                <input
+                  name="hours"
+                  type="number"
+                  min="0.25"
+                  max="24"
+                  step="0.25"
+                  className={inputClass}
+                  required
+                  autoFocus
+                />
+              </Field>
+              <Field label="Note (optional)">
+                <input name="note" className={inputClass} placeholder="What did you work on?" />
+              </Field>
+              <div className="mt-1 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="rounded-lg px-3.5 py-2 text-sm text-dim hover:text-text"
+                >
+                  Cancel
+                </button>
+                <SubmitButton>Submit for review</SubmitButton>
+              </div>
+            </ActionForm>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function LifecycleControls({ task, canApprove }) {
   const s = task.status;
 
@@ -296,9 +358,7 @@ export function LifecycleControls({ task, canApprove }) {
 
       {s === "in_progress" && (
         <div className="flex flex-wrap gap-2">
-          <ActionForm action={transitionTask} hidden={{ id: task.id, to: "in_review" }}>
-            <SubmitButton>Submit for review</SubmitButton>
-          </ActionForm>
+          <SubmitForReviewButton taskId={task.id} />
         </div>
       )}
 

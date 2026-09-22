@@ -47,6 +47,9 @@ export const PERMISSION_CATALOG = [
   { key: "settings:manage", group: "Settings", description: "Manage workspace settings" },
 
   { key: "division:manage", group: "Divisions", description: "Create, rename and delete agency divisions" },
+
+  { key: "attendance:track", group: "Attendance", description: "Clock in/out and view your own attendance history" },
+  { key: "attendance:read:all", group: "Attendance", description: "View attendance for everyone in the workspace" },
 ];
 
 export const PERMISSION_KEYS = PERMISSION_CATALOG.map((p) => p.key);
@@ -83,6 +86,7 @@ export const SYSTEM_ROLES = [
       "role:assign",
       "audit:read",
       "settings:manage",
+      "attendance:*",
     ],
     priority: 80,
     isSystem: true,
@@ -112,6 +116,8 @@ export const SYSTEM_ROLES = [
       "session:read",
       "version:read",
       "version:assign",
+      "attendance:track",
+      "attendance:read:all",
     ],
     priority: 50,
     isSystem: true,
@@ -127,6 +133,7 @@ export const SYSTEM_ROLES = [
       "task:transition",
       "session:read",
       "version:read",
+      "attendance:track",
     ],
     priority: 10,
     isSystem: true,
@@ -141,6 +148,7 @@ export const SYSTEM_ROLES = [
       "task:read",
       "task:transition",
       "session:read",
+      "attendance:track",
     ],
     priority: 5,
     isSystem: true,

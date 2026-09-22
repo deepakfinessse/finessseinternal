@@ -188,6 +188,35 @@ export default async function TaskDetailPage({ params }) {
             <LifecycleControls task={task} canApprove={canApprove} />
           </Card>
 
+          {canApprove && (
+            <Card title="Time logged" description="Hours the assignee reported when submitting for review.">
+              {task.timeLogs.length === 0 ? (
+                <p className="text-sm text-gray">No hours logged yet.</p>
+              ) : (
+                <>
+                  <div className="mb-3 flex items-baseline gap-1.5">
+                    <span className="text-[22px] font-semibold tabular-nums">{task.totalLoggedHours}</span>
+                    <span className="text-[13px] text-dim">hour{task.totalLoggedHours === 1 ? "" : "s"} total</span>
+                  </div>
+                  <ul className="flex flex-col gap-2 border-t border-gray/15 pt-3 text-sm">
+                    {task.timeLogs.map((l, i) => (
+                      <li key={i}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium">{l.loggedBy?.name || l.loggedBy?.email || "Someone"}</span>
+                          <span className="mono text-[13px] font-semibold tabular-nums">{l.hours}h</span>
+                        </div>
+                        <div className="text-xs text-gray">
+                          {fmtDateTime(l.loggedAt)}
+                          {l.note && ` · ${l.note}`}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </Card>
+          )}
+
           <Card title="People">
             <dl className="text-sm">
               <dt className="text-gray">Assignee (executor)</dt>
