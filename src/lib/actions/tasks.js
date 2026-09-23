@@ -457,6 +457,15 @@ export async function submitForReview(_prev, formData) {
     targetId: task._id,
     meta: { from: "in_progress", to: "in_review", hours },
   });
+  // Ready for review — loop in whoever can approve it (managers/admins).
+  await notifyByPermission({
+    permission: "task:approve",
+    actorId: me.id,
+    type: "task.review_requested",
+    title: `Ready for review: ${task.title}`,
+    body: note,
+    link: `/tasks/${id}`,
+  });
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
   return { ok: true };
 }

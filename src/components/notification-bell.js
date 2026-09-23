@@ -15,6 +15,7 @@ const TONE = {
   "task.unblocked": "ok",
   "task.approved": "ok",
   "task.approval_requested": "caution",
+  "task.review_requested": "caution",
   "task.assigned": "accent",
   "task.collaborator_added": "accent",
   "project.assigned": "accent",
