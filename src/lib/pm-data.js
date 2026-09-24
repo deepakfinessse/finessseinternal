@@ -218,6 +218,15 @@ export function serializeTask(t, { project, users, dmap = {} } = {}) {
     const d = users?.get(String(id));
     return d ? { id: String(d._id), name: d.name || "", email: d.email, image: d.image || null } : { id: String(id) };
   };
+  const serializedBlockers = (t.blockers || (t.blocker ? [t.blocker] : [])).map((b) => ({
+    active: !!b.active,
+    description: b.description || "",
+    kind: b.kind || "internal",
+    raisedBy: u(b.raisedBy),
+    raisedAt: iso(b.raisedAt),
+    resolvedAt: iso(b.resolvedAt),
+    log: (b.log || []).map((l) => ({ at: iso(l.at), note: l.note, by: u(l.by) })),
+  }));
   return {
     id: String(t._id),
     taskNumber: t.taskNumber || "",
@@ -263,16 +272,11 @@ export function serializeTask(t, { project, users, dmap = {} } = {}) {
       loggedAt: iso(l.loggedAt),
     })),
     totalLoggedHours: (t.timeLogs || []).reduce((sum, l) => sum + (l.hours || 0), 0),
-    blocker: t.blocker
-      ? {
-          active: !!t.blocker.active,
-          description: t.blocker.description || "",
-          kind: t.blocker.kind || "internal",
-          raisedAt: iso(t.blocker.raisedAt),
-          resolvedAt: iso(t.blocker.resolvedAt),
-          log: (t.blocker.log || []).map((l) => ({ at: iso(l.at), note: l.note, by: u(l.by) })),
-        }
-      : null,
+    // blockers holds the full raise/resolve history; blocker (singular) is
+    // kept as the currently-active one, or null, for callers that only care
+    // about "is this task blocked right now".
+    blockers: serializedBlockers,
+    blocker: serializedBlockers.find((b) => b.active) || null,
     createdAt: iso(t.createdAt || t._id.getTimestamp()),
     updatedAt: iso(t.updatedAt),
   };
@@ -285,7 +289,10 @@ async function hydrateUsers(taskDocs) {
     if (t.assigneeId) ids.add(String(t.assigneeId));
     for (const c of t.collaboratorIds || []) ids.add(String(c));
     for (const e of t.updates || []) if (e.by) ids.add(String(e.by));
-    for (const l of t.blocker?.log || []) if (l.by) ids.add(String(l.by));
+    for (const b of t.blockers || (t.blocker ? [t.blocker] : [])) {
+      if (b.raisedBy) ids.add(String(b.raisedBy));
+      for (const l of b.log || []) if (l.by) ids.add(String(l.by));
+    }
     for (const l of t.timeLogs || []) if (l.loggedBy) ids.add(String(l.loggedBy));
   }
   if (!ids.size) return new Map();

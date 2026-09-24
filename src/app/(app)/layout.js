@@ -51,7 +51,7 @@ export default async function AppLayout({ children }) {
     {
       label: "Admin",
       items: [
-        can("analytics:read") && { href: "/reports", label: "Reports", icon: "reports" },
+        // can("analytics:read") && { href: "/reports", label: "Reports", icon: "reports" },
         can("analytics:read") && { href: "/analytics", label: "Intelligence", icon: "intelligence" },
         can("role:read") && { href: "/settings/roles", label: "Roles & Access", icon: "tools" },
         can("division:manage") && { href: "/settings/divisions", label: "Divisions", icon: "tools" },

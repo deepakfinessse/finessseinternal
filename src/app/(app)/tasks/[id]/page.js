@@ -147,21 +147,30 @@ export default async function TaskDetailPage({ params }) {
             )}
           </Card>
 
-          {task.blocker && (
-            <Card title="Blocker log" description={`${task.blocker.kind === "client_side" ? "Client-side" : "Internal"} · ${task.blocker.active ? "active" : "resolved"}`}>
-              <p className="text-sm">{task.blocker.description}</p>
-              <ul className="mt-3 flex flex-col gap-1.5 text-xs text-gray">
-                {task.blocker.log.map((l, i) => (
-                  <li key={i}>
-                    <span className="text-foreground">{fmtDateTime(l.at)}</span>
-                    {" · "}
-                    {l.by?.name || l.by?.email || "Someone"} — {l.note}
+          {task.blockers?.length > 0 && (
+            <Card title="Blocker log" description={`${task.blockers.length} raised`}>
+              <ul className="flex flex-col divide-y divide-gray/15">
+                {[...task.blockers].reverse().map((b, i) => (
+                  <li key={i} className="py-3 first:pt-0 last:pb-0">
+                    <p className="text-xs text-gray">
+                      {b.kind === "client_side" ? "Client-side" : "Internal"} · {b.active ? "active" : "resolved"}
+                    </p>
+                    <p className="mt-1 text-sm">{b.description}</p>
+                    <ul className="mt-2 flex flex-col gap-1.5 text-xs text-gray">
+                      {b.log.map((l, j) => (
+                        <li key={j}>
+                          <span className="text-foreground">{fmtDateTime(l.at)}</span>
+                          {" · "}
+                          {l.by?.name || l.by?.email || "Someone"} — {l.note}
+                        </li>
+                      ))}
+                    </ul>
+                    {b.resolvedAt && (
+                      <p className="mt-2 text-xs text-primary">Resolved {fmtDateTime(b.resolvedAt)}</p>
+                    )}
                   </li>
                 ))}
               </ul>
-              {task.blocker.resolvedAt && (
-                <p className="mt-2 text-xs text-primary">Resolved {fmtDateTime(task.blocker.resolvedAt)}</p>
-              )}
             </Card>
           )}
 

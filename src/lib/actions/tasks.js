@@ -19,6 +19,10 @@ import {
 const oid = (id) => new ObjectId(String(id));
 const bump = (paths) => paths.forEach((p) => revalidatePath(p));
 
+// Tasks written before the blocker-history change carry a single `blocker`
+// object; fold it in as the first entry so nothing is lost.
+const blockerHistory = (task) => task.blockers || (task.blocker ? [task.blocker] : []);
+
 /** A user may act on a task's lifecycle if they can approve, or they're the
  *  assignee / a collaborator with task:transition. */
 async function loadActableTask(taskId, { need = "task:transition" } = {}) {
@@ -491,23 +495,27 @@ export async function raiseBlocker(_prev, formData) {
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message || "Describe the blocker" };
 
   const now = new Date();
+  const newBlocker = {
+    active: true,
+    description: parsed.data.description,
+    kind: parsed.data.kind,
+    raisedBy: oid(me.id),
+    raisedAt: now,
+    resolvedAt: null,
+    log: [{ at: now, by: oid(me.id), note: `Blocker raised: ${parsed.data.description}` }],
+  };
+  // blockers is append-only — every raise/resolve cycle stays on the task
+  // instead of overwriting the last one, so the full history survives.
   await tasks.updateOne(
     { _id: task._id },
     {
       $set: {
         status: "blocked",
         statusBeforeBlock: task.status,
-        blocker: {
-          active: true,
-          description: parsed.data.description,
-          kind: parsed.data.kind,
-          raisedBy: oid(me.id),
-          raisedAt: now,
-          resolvedAt: null,
-          log: [{ at: now, by: oid(me.id), note: `Blocker raised: ${parsed.data.description}` }],
-        },
+        blockers: [...blockerHistory(task), newBlocker],
         updatedAt: now,
       },
+      $unset: { blocker: "" },
     },
   );
   await writeAudit({
@@ -546,11 +554,15 @@ export async function appendBlockerNote(_prev, formData) {
   const ctx = await loadActableTask(id);
   if (ctx.error) return { ok: false, error: ctx.error };
   const { me, task, tasks } = ctx;
-  if (!task.blocker?.active) return { ok: false, error: "No active blocker." };
+  const blockers = blockerHistory(task);
+  const idx = blockers.length - 1;
+  if (idx < 0 || !blockers[idx]?.active) return { ok: false, error: "No active blocker." };
 
+  const now = new Date();
+  blockers[idx] = { ...blockers[idx], log: [...(blockers[idx].log || []), { at: now, by: oid(me.id), note }] };
   await tasks.updateOne(
     { _id: task._id },
-    { $push: { "blocker.log": { at: new Date(), by: oid(me.id), note } }, $set: { updatedAt: new Date() } },
+    { $set: { blockers, updatedAt: now }, $unset: { blocker: "" } },
   );
   bump([`/tasks/${id}`]);
   return { ok: true };
@@ -566,17 +578,26 @@ export async function resolveBlocker(_prev, formData) {
 
   const back = task.statusBeforeBlock || "in_progress";
   const now = new Date();
+  const blockers = blockerHistory(task);
+  const idx = blockers.length - 1;
+  if (idx >= 0) {
+    blockers[idx] = {
+      ...blockers[idx],
+      active: false,
+      resolvedAt: now,
+      log: [...(blockers[idx].log || []), { at: now, by: oid(me.id), note }],
+    };
+  }
   await tasks.updateOne(
     { _id: task._id },
     {
       $set: {
         status: back,
         statusBeforeBlock: null,
-        "blocker.active": false,
-        "blocker.resolvedAt": now,
+        blockers,
         updatedAt: now,
       },
-      $push: { "blocker.log": { at: now, by: oid(me.id), note } },
+      $unset: { blocker: "" },
     },
   );
   await writeAudit({
@@ -780,12 +801,19 @@ export async function moveTask(_prev, formData) {
 
   if (from === "blocked") {
     const back = task.statusBeforeBlock || "in_progress";
+    const blockers = blockerHistory(task);
+    const idx = blockers.length - 1;
+    if (idx >= 0) {
+      blockers[idx] = {
+        ...blockers[idx],
+        active: false,
+        resolvedAt: now,
+        log: [...(blockers[idx].log || []), { at: now, by: oid(me.id), note: "Blocker resolved from the board" }],
+      };
+    }
     await tasks.updateOne(
       { _id: task._id },
-      {
-        $set: { status: back, statusBeforeBlock: null, "blocker.active": false, "blocker.resolvedAt": now, updatedAt: now },
-        $push: { "blocker.log": { at: now, by: oid(me.id), note: "Blocker resolved from the board" } },
-      },
+      { $set: { status: back, statusBeforeBlock: null, blockers, updatedAt: now }, $unset: { blocker: "" } },
     );
     await notifyOwners("task.unblocked", `Unblocked: ${task.title}`);
     return done("task.blocker.resolve", { resumedAt: back });
