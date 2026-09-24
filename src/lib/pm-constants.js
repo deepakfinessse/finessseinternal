@@ -63,6 +63,31 @@ export function isOverdue(task) {
   return new Date(task.endDate).getTime() < Date.now();
 }
 
+/* estimated time — stored as whole minutes, entered/shown as hours + minutes */
+export const MAX_ESTIMATE_MINUTES = 999 * 60;
+
+/** Reads `${prefix}Hours` / `${prefix}Minutes` form fields. Returns minutes,
+ *  0 when both are blank, or null when the input is invalid. */
+export function readDuration(formData, prefix = "estimate") {
+  const h = String(formData.get(`${prefix}Hours`) ?? "").trim();
+  const m = String(formData.get(`${prefix}Minutes`) ?? "").trim();
+  const hours = h === "" ? 0 : Number(h);
+  const minutes = m === "" ? 0 : Number(m);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  if (hours < 0 || minutes < 0 || minutes > 59) return null;
+  const total = hours * 60 + minutes;
+  return total > MAX_ESTIMATE_MINUTES ? null : total;
+}
+
+export function fmtDuration(minutes) {
+  if (minutes == null) return "—";
+  const total = Math.round(minutes);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (!h) return `${m}m`;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
 /* time helpers — wrapped so components can use "now" without tripping the
    react-compiler purity lint (Date.now is impure inside render). */
 export function nowMs() {

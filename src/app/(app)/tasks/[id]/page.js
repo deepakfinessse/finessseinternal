@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/access";
 import { getTask, getProject } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
 import { listAudit } from "@/lib/audit";
-import { STATUS_LABEL } from "@/lib/pm-constants";
+import { STATUS_LABEL, fmtDuration } from "@/lib/pm-constants";
 import { Card, Badge, EmptyState, fmtDate, fmtDateTime, relTime } from "@/components/ui";
 import {
   TaskStatusBadge,
@@ -26,6 +26,28 @@ import {
 } from "../task-forms";
 
 export const metadata = { title: "Task · Finessse" };
+
+function TimeVsEstimate({ estimateMinutes, loggedHours, hasLogs }) {
+  const actualMinutes = Math.round(loggedHours * 60);
+  const diff = estimateMinutes && hasLogs ? actualMinutes - estimateMinutes : null;
+  return (
+    <div className="mb-3 grid grid-cols-2 gap-3">
+      <div>
+        <div className="text-[11px] uppercase tracking-wider text-faint">Estimated</div>
+        <div className="text-[20px] font-semibold tabular-nums">{fmtDuration(estimateMinutes)}</div>
+      </div>
+      <div>
+        <div className="text-[11px] uppercase tracking-wider text-faint">Actual</div>
+        <div className="text-[20px] font-semibold tabular-nums">{hasLogs ? fmtDuration(actualMinutes) : "—"}</div>
+        {diff !== null && (
+          <div className={`text-[11.5px] ${diff > 0 ? "text-secondary" : "text-primary"}`}>
+            {diff === 0 ? "On estimate" : diff > 0 ? `${fmtDuration(diff)} over` : `${fmtDuration(-diff)} under`}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default async function TaskDetailPage({ params }) {
   const { id } = await params;
@@ -90,6 +112,7 @@ export default async function TaskDetailPage({ params }) {
             {task.startDate ? `${fmtDate(task.startDate)} → ` : "due "}
             {fmtDate(task.endDate)}
           </span>
+          {task.estimateMinutes ? <span>· est. {fmtDuration(task.estimateMinutes)}</span> : null}
           {task.revisionCount > 0 && <span>· {task.revisionCount} revision(s)</span>}
         </div>
       </div>
@@ -198,15 +221,12 @@ export default async function TaskDetailPage({ params }) {
           </Card>
 
           {canApprove && (
-            <Card title="Time logged" description="Hours the assignee reported when submitting for review.">
+            <Card title="Time logged" description="Estimated time vs. hours the assignee reported when submitting for review.">
+              <TimeVsEstimate estimateMinutes={task.estimateMinutes} loggedHours={task.totalLoggedHours} hasLogs={task.timeLogs.length > 0} />
               {task.timeLogs.length === 0 ? (
                 <p className="text-sm text-gray">No hours logged yet.</p>
               ) : (
                 <>
-                  <div className="mb-3 flex items-baseline gap-1.5">
-                    <span className="text-[22px] font-semibold tabular-nums">{task.totalLoggedHours}</span>
-                    <span className="text-[13px] text-dim">hour{task.totalLoggedHours === 1 ? "" : "s"} total</span>
-                  </div>
                   <ul className="flex flex-col gap-2 border-t border-gray/15 pt-3 text-sm">
                     {task.timeLogs.map((l, i) => (
                       <li key={i}>

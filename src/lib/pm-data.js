@@ -272,6 +272,9 @@ export function serializeTask(t, { project, users, dmap = {} } = {}) {
       loggedAt: iso(l.loggedAt),
     })),
     totalLoggedHours: (t.timeLogs || []).reduce((sum, l) => sum + (l.hours || 0), 0),
+    // Approximate time set by whoever created/scheduled the task (task:schedule
+    // to change it) — the assignee can see it but never edit it.
+    estimateMinutes: t.estimateMinutes ?? null,
     // blockers holds the full raise/resolve history; blocker (singular) is
     // kept as the currently-active one, or null, for callers that only care
     // about "is this task blocked right now".

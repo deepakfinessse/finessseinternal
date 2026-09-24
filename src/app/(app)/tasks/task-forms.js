@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Field, inputClass } from "@/components/ui";
 import { Icon } from "@/components/icons";
-import { PRIORITIES, BLOCKER_KINDS } from "@/lib/pm-constants";
+import { PRIORITIES, BLOCKER_KINDS, fmtDuration } from "@/lib/pm-constants";
 import {
   createTask,
   updateTask,
@@ -27,6 +27,43 @@ import {
 
 function toDateInput(iso) {
   return iso ? new Date(iso).toISOString().slice(0, 10) : "";
+}
+
+/** Hours + minutes pair, read server-side by readDuration(). */
+function EstimateFields({ minutes, required = false, hint }) {
+  const h = minutes ? Math.floor(minutes / 60) : "";
+  const m = minutes ? minutes % 60 : "";
+  return (
+    <Field label="Estimated time" hint={hint}>
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          name="estimateHours"
+          min="0"
+          max="999"
+          step="1"
+          defaultValue={h}
+          placeholder="0"
+          aria-label="Estimated hours"
+          className={`${inputClass} w-20`}
+          required={required}
+        />
+        <span className="text-[12px] text-dim">h</span>
+        <input
+          type="number"
+          name="estimateMinutes"
+          min="0"
+          max="59"
+          step="1"
+          defaultValue={m}
+          placeholder="0"
+          aria-label="Estimated minutes"
+          className={`${inputClass} w-20`}
+        />
+        <span className="text-[12px] text-dim">m</span>
+      </div>
+    </Field>
+  );
 }
 
 /* ------------------------------------------------------------------ create */
@@ -95,6 +132,8 @@ export function CreateTaskForm({ projects, people, allDivisions = [], defaultPro
           <input type="date" name="endDate" className={inputClass} disabled={!canSchedule} />
         </Field>
       </div>
+
+      <EstimateFields required hint="Approximate time — the assignee can't change it" />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
@@ -174,13 +213,14 @@ export function TaskEditForm({ task, people }) {
 
 export function ScheduleForm({ task }) {
   return (
-    <ActionForm action={scheduleTask} hidden={{ id: task.id }} successMessage="Dates updated." className="flex flex-wrap items-end gap-3">
+    <ActionForm action={scheduleTask} hidden={{ id: task.id }} successMessage="Schedule updated." className="flex flex-wrap items-end gap-3">
       <Field label="Start date">
         <input type="date" name="startDate" defaultValue={toDateInput(task.startDate)} className={inputClass} />
       </Field>
       <Field label="End date">
         <input type="date" name="endDate" defaultValue={toDateInput(task.endDate)} className={inputClass} />
       </Field>
+      <EstimateFields minutes={task.estimateMinutes} />
       <SubmitButton variant="secondary">Set schedule</SubmitButton>
     </ActionForm>
   );
@@ -287,7 +327,7 @@ export function DeleteTaskButton({ id }) {
  * Submitting for review requires logging hours spent — a popup collects them
  * so managers/admins get real time-on-task, not just lifecycle timestamps.
  */
-function SubmitForReviewButton({ taskId }) {
+function SubmitForReviewButton({ taskId, estimateMinutes }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -305,6 +345,11 @@ function SubmitForReviewButton({ taskId }) {
             <p className="mt-1 text-[13px] text-dim">
               How long did you spend on this task before it goes to review?
             </p>
+            {estimateMinutes ? (
+              <p className="mt-2 text-[12.5px] text-dim">
+                Estimated time: <span className="font-semibold text-text">{fmtDuration(estimateMinutes)}</span>
+              </p>
+            ) : null}
             <ActionForm
               action={submitForReview}
               hidden={{ id: taskId }}
@@ -358,7 +403,7 @@ export function LifecycleControls({ task, canApprove }) {
 
       {s === "in_progress" && (
         <div className="flex flex-wrap gap-2">
-          <SubmitForReviewButton taskId={task.id} />
+          <SubmitForReviewButton taskId={task.id} estimateMinutes={task.estimateMinutes} />
         </div>
       )}
 

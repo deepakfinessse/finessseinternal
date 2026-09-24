@@ -14,6 +14,7 @@ import {
   TASK_STATUSES,
   canForward,
   BLOCKER_KINDS,
+  readDuration,
 } from "@/lib/pm-constants";
 
 const oid = (id) => new ObjectId(String(id));
@@ -95,6 +96,9 @@ export async function createTask(_prev, formData) {
     return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
   const d = parsed.data;
+  const estimateMinutes = readDuration(formData);
+  if (estimateMinutes === null) return { ok: false, error: "Enter a valid estimated time (minutes 0–59)." };
+  if (estimateMinutes === 0) return { ok: false, error: "Enter the approximate time this task should take." };
   const { tasks, projects } = await collections();
   const project = await projects.findOne({ _id: oid(d.projectId) });
   if (!project) return { ok: false, error: "Project not found." };
@@ -131,6 +135,7 @@ export async function createTask(_prev, formData) {
     clientVisible: d.clientVisible,
     startDate: d.startDate ? new Date(d.startDate) : null,
     endDate: d.endDate ? new Date(d.endDate) : null,
+    estimateMinutes,
     assigneeId: d.assigneeId ? oid(d.assigneeId) : null,
     collaboratorIds: d.collaboratorIds.map(oid),
     updates: [],
@@ -147,7 +152,7 @@ export async function createTask(_prev, formData) {
     action: "task.create",
     targetType: "task",
     targetId: res.insertedId,
-    meta: { title: d.title, taskNumber, project: project.name, division: d.division },
+    meta: { title: d.title, taskNumber, project: project.name, division: d.division, estimateMinutes },
   });
   if (d.assigneeId) {
     await notifyUser({
@@ -227,6 +232,11 @@ export async function scheduleTask(_prev, formData) {
   if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
     return { ok: false, error: "Start date must be on or before the end date." };
   }
+  // The estimate lives with the dates: both are set by task:schedule holders
+  // (super admin / admin / manager) and are read-only to the assignee.
+  const hasEstimate = formData.has("estimateHours") || formData.has("estimateMinutes");
+  const estimateMinutes = hasEstimate ? readDuration(formData) : undefined;
+  if (estimateMinutes === null) return { ok: false, error: "Enter a valid estimated time (minutes 0–59)." };
   const { tasks } = await collections();
   const task = await tasks.findOne({ _id: oid(id) });
   if (!task) return { ok: false, error: "Task not found." };
@@ -237,6 +247,7 @@ export async function scheduleTask(_prev, formData) {
       $set: {
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
+        ...(hasEstimate ? { estimateMinutes: estimateMinutes || null } : {}),
         // A new deadline clears any prior overdue alert, so a task that
         // slips again under its new date gets a fresh one.
         overdueNotifiedAt: null,
@@ -249,7 +260,7 @@ export async function scheduleTask(_prev, formData) {
     action: "task.schedule",
     targetType: "task",
     targetId: task._id,
-    meta: { startDate, endDate },
+    meta: { startDate, endDate, ...(hasEstimate ? { estimateMinutes: estimateMinutes || null } : {}) },
   });
   bump(["/tasks", `/tasks/${id}`, "/analytics"]);
   return { ok: true };
