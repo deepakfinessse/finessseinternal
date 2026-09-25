@@ -104,18 +104,22 @@ export default async function AttendancePage({ searchParams }) {
       </Card>
 
       {canSeeAll && (
-        <Card
-          title="Team report"
-          description="Status (Active / WFH), first in, last out and total hours, per person per day."
-          action={
-            <a
-              href={exportHref}
-              className="inline-flex items-center gap-1.5 rounded-[10px] border border-line-strong px-3 py-[7px] text-[12px] font-semibold text-dim transition-colors hover:bg-surface-2 hover:text-text"
-            >
-              <Icon name="reports" size={14} /> Download CSV
-            </a>
-          }
-        >
+        // Starts open: the filter is a GET form that reloads the page, so a
+        // closed default would hide the results the user just asked for.
+        <details className="card group p-5" open>
+          <summary className="flex cursor-pointer list-none items-start justify-between gap-3 [&::-webkit-details-marker]:hidden">
+            <div>
+              <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+                Team report
+                <span className="ml-2 text-[12px] font-normal text-faint">{dailyRows.length}</span>
+              </h2>
+              <p className="mt-1 text-[13px] text-dim">
+                Status (Active / WFH), first in, last out and total hours, per person per day.
+              </p>
+            </div>
+            <Icon name="chevronDown" size={16} className="mt-0.5 shrink-0 text-dim transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="mt-4">
           <form className="mb-4 flex flex-wrap items-end gap-2">
             <Field label="Person">
               <select name="user" defaultValue={personId} className={inputClass}>
@@ -145,6 +149,12 @@ export default async function AttendancePage({ searchParams }) {
             >
               Clear
             </Link>
+            <a
+              href={exportHref}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-[10px] border border-line-strong px-3 py-2 text-[12px] font-semibold text-dim transition-colors hover:bg-surface-2 hover:text-text"
+            >
+              <Icon name="reports" size={14} /> Download CSV
+            </a>
           </form>
 
           {dailyRows.length === 0 ? (
@@ -170,7 +180,8 @@ export default async function AttendancePage({ searchParams }) {
               ))}
             </ul>
           )}
-        </Card>
+          </div>
+        </details>
       )}
     </div>
   );

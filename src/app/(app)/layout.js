@@ -35,6 +35,7 @@ export default async function AppLayout({ children }) {
         canTasks && { href: "/timeline", label: "Timeline", icon: "timeline" },
         can("analytics:read") && { href: "/heatmap", label: "Heatmap", icon: "heatmap" },
         can("project:read") && { href: "/projects", label: "Projects", icon: "projects" },
+        canTasks && { href: "/leaderboard", label: "Leaderboard", icon: "trophy" },
       ].filter(Boolean),
     },
     {

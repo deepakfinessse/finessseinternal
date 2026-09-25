@@ -11,6 +11,17 @@ export const PRIORITIES = [
 ];
 export const PRIORITY_KEYS = PRIORITIES.map((p) => p.key);
 
+/**
+ * Leaderboard XP, awarded to a task's assignee when it's approved as
+ * completed. Derived from completed tasks (not stored), so reopening a task
+ * takes its XP back automatically.
+ */
+export const XP_BY_PRIORITY = { low: 10, medium: 20, high: 40, urgent: 80 };
+
+export function taskXp(priority) {
+  return XP_BY_PRIORITY[priority] ?? XP_BY_PRIORITY.medium;
+}
+
 // Task lifecycle / state machine (see the flowchart, section 4).
 export const TASK_STATUSES = ["open", "in_progress", "in_review", "blocked", "completed"];
 

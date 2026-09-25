@@ -17,6 +17,7 @@ const TITLES = [
   [/^\/tasks/, "Board"],
   [/^\/timeline/, "Timeline"],
   [/^\/heatmap/, "Heatmap"],
+  [/^\/leaderboard/, "Leaderboard"],
   [/^\/chat/, "Chat"],
   [/^\/projects\/[^/]+$/, "Project"],
   [/^\/projects/, "Projects"],

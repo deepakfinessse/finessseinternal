@@ -80,12 +80,10 @@ export default async function HeatmapPage({ searchParams }) {
     const dayTime = startOfDay(day).getTime();
     const openHits = hits.filter((t) => t.status !== "completed");
     if (openHits.length && dayTime < today.getTime()) return "overdue";
-    if (openHits.length && dayTime - today.getTime() <= 3 * DAY) return "soon";
     return "scheduled";
   };
   const TONE_BG = {
     overdue: "var(--warn)",
-    soon: "var(--caution)",
     scheduled: "var(--ok)",
   };
 
@@ -226,7 +224,6 @@ export default async function HeatmapPage({ searchParams }) {
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-4 text-[10px] uppercase tracking-[0.1em] text-faint">
                 <Legend color="var(--warn)" label="Overdue" />
-                <Legend color="var(--caution)" label="Due ≤ 3 days" />
                 <Legend color="var(--ok)" label="Scheduled" />
                 <Legend color="var(--surface-2)" label="Clear" />
               </div>

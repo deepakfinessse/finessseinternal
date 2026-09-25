@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/access";
 import { getTask, getProject } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
 import { listAudit } from "@/lib/audit";
-import { STATUS_LABEL, fmtDuration } from "@/lib/pm-constants";
+import { STATUS_LABEL, fmtDuration, taskXp } from "@/lib/pm-constants";
 import { Card, Badge, EmptyState, fmtDate, fmtDateTime, relTime } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import {
@@ -113,6 +113,9 @@ export default async function TaskDetailPage({ params }) {
             {fmtDate(task.endDate)}
           </span>
           {task.estimateMinutes ? <span>· est. {fmtDuration(task.estimateMinutes)}</span> : null}
+          <span title="XP the assignee earns when this task is approved as completed">
+            · {task.status === "completed" ? "earned" : "worth"} {taskXp(task.priority)} XP
+          </span>
           {task.revisionCount > 0 && <span>· {task.revisionCount} revision(s)</span>}
         </div>
       </div>

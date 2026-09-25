@@ -26,6 +26,7 @@ const P = {
   file: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5",
   download: "M12 4v11M7 10l5 5 5-5M5 20h14",
   close: "M6 6l12 12M18 6L6 18",
+  trophy: "M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4v3h-4z",
   dot: "M12 12h.01",
 };
 
