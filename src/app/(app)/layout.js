@@ -109,7 +109,7 @@ export default async function AppLayout({ children }) {
                 {user.name || user.email}
               </div>
               <div className="mono truncate text-[9px] uppercase tracking-[0.13em] text-faint">
-                {user.roleKeys[0] || "no role"}
+                {user.title?.trim() || ""}
               </div>
             </div>
             <ThemeToggle />

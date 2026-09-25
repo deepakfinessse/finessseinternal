@@ -31,7 +31,8 @@ export default async function DashboardPage() {
       <PageHeader
         eyebrow="Overview"
         title={`Welcome back, ${(user.name || user.email).split(" ")[0]}`}
-        description={user.roles.map((r) => r.name).join(", ") || "No role assigned"}
+        // The person's own profile title, not their permission role(s).
+        description={user.title?.trim() || ""}
       />
 
       {tStats && (

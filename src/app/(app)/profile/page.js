@@ -19,7 +19,7 @@ export default async function ProfilePage() {
       <div>
         <h1 className="text-2xl font-heading">My profile</h1>
         <p className="text-sm text-gray">
-          {me.email} · {me.roles.map((r) => r.name).join(", ") || "no role"}
+          {me.email} · {me.title?.trim() || ""}
         </p>
       </div>
 
