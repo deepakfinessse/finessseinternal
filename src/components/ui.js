@@ -75,6 +75,8 @@ export function Chip({ children, tone = "neutral", className = "" }) {
     warn: "border-[color-mix(in_srgb,var(--warn)_45%,transparent)] text-warn bg-warn-bg",
     caution: "border-[color-mix(in_srgb,var(--caution)_45%,transparent)] text-caution bg-caution-bg",
     ok: "border-[color-mix(in_srgb,var(--ok)_40%,transparent)] text-ok bg-ok-bg",
+    progress: "border-[color-mix(in_srgb,var(--progress)_45%,transparent)] text-progress bg-progress-bg",
+    blocked: "border-[color-mix(in_srgb,var(--blocked)_45%,transparent)] text-blocked bg-blocked-bg",
     accent: "border-[color-mix(in_srgb,var(--accent)_45%,transparent)] text-accent",
   }[tone];
   return (
@@ -89,7 +91,8 @@ export function Chip({ children, tone = "neutral", className = "" }) {
 /* ------------------------------------------------------------------ stats */
 
 export function Stat({ label, value, hint, tone }) {
-  const valueTone = tone === "warn" ? "text-warn" : "";
+  const valueTone =
+    { warn: "text-warn", progress: "text-progress", blocked: "text-blocked", ok: "text-ok", accent: "text-accent" }[tone] || "";
   return (
     <div className="card p-4">
       <div className={`text-[10px] font-medium uppercase tracking-[0.12em] text-faint`}>

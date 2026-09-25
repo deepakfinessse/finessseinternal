@@ -5,7 +5,8 @@ import { requireUser } from "@/lib/access";
 import { listTasks, listProjectOptions } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
 import { divisionLabelMap, listDivisions } from "@/lib/divisions";
-import { nowMs } from "@/lib/pm-constants";
+import { nowMs, STATUS_LABEL } from "@/lib/pm-constants";
+import { STATUS_COLOR, OVERDUE_COLOR } from "@/components/pm-ui";
 import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-filters";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DeliveryFilters } from "@/components/delivery-filters";
@@ -162,9 +163,24 @@ export default async function TimelinePage({ searchParams }) {
           <SegToggle options={GROUPINGS} current={by} param="by" hrefFor={seg} />
           <SegToggle options={RANGES} current={range} param="range" hrefFor={seg} />
         </div>
-        <span className="mono flex items-center gap-1.5 text-[10px] uppercase tracking-[0.13em] text-faint">
-          <Icon name="tools" size={12} /> Dates are admin-controlled
-        </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          {[
+            ["Open", STATUS_COLOR.open],
+            ["In progress", STATUS_COLOR.in_progress],
+            ["In review", STATUS_COLOR.in_review],
+            ["Blocked", STATUS_COLOR.blocked],
+            ["Completed", STATUS_COLOR.completed],
+            ["Overdue", OVERDUE_COLOR],
+          ].map(([label, color]) => (
+            <span key={label} className="mono flex items-center gap-1.5 text-[10px] uppercase tracking-[0.13em] text-faint">
+              <span className="h-2 w-2 rounded-full" style={{ background: color }} />
+              {label}
+            </span>
+          ))}
+          <span className="mono flex items-center gap-1.5 text-[10px] uppercase tracking-[0.13em] text-faint">
+            <Icon name="tools" size={12} /> Dates are admin-controlled
+          </span>
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -226,23 +242,21 @@ export default async function TimelinePage({ searchParams }) {
                     </div>
                     <div className="relative flex-1" style={{ width: gridW, minHeight: height }}>
                       {placed.map(({ t, g, lane }) => {
-                        const warn = t.overdue && t.status !== "completed";
+                        // Overdue wins (red); otherwise the task's status colour.
+                        const overdue = t.overdue && t.status !== "completed";
+                        const c = overdue ? OVERDUE_COLOR : STATUS_COLOR[t.status] || STATUS_COLOR.open;
                         return (
                           <Link
                             key={t.id}
                             href={`/tasks/${t.id}`}
-                            title={t.title}
+                            title={`${t.title} · ${overdue ? "Overdue" : STATUS_LABEL[t.status] || t.status}`}
                             style={{
                               left: `${g.left}%`,
                               width: `${g.width}%`,
                               top: ROW_PAD + lane * LANE_H,
-                              background: warn
-                                ? "var(--warn-bg)"
-                                : "color-mix(in srgb, var(--text) 8%, transparent)",
-                              borderColor: warn
-                                ? "color-mix(in srgb, var(--warn) 50%, transparent)"
-                                : "color-mix(in srgb, var(--text) 40%, transparent)",
-                              color: warn ? "var(--warn)" : "var(--text)",
+                              background: `color-mix(in srgb, ${c} 14%, transparent)`,
+                              borderColor: `color-mix(in srgb, ${c} 55%, transparent)`,
+                              color: "var(--text)",
                             }}
                             className="absolute flex h-[24px] items-center gap-1.5 overflow-hidden rounded-[7px] border px-2 text-[11px] font-medium hover:brightness-110"
                           >

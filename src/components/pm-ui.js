@@ -34,18 +34,31 @@ export function taskCode(task) {
 
 /* ---------------------------------------------------------------- statuses */
 
+// One palette for every status everywhere (badges, board, timeline, charts):
+// In Progress = yellow, Completed = green, In Review = blue, Blocked = orange,
+// Open = grey. "Overdue" isn't a status but a flag — it's always red (--warn).
+// Colours are CSS variables from globals.css so dark mode gets its own shades.
+export const STATUS_COLOR = {
+  open: "var(--text-faint)",
+  in_progress: "var(--progress)",
+  in_review: "var(--accent)",
+  blocked: "var(--blocked)",
+  completed: "var(--ok)",
+};
+export const OVERDUE_COLOR = "var(--warn)";
+
 const STATUS_STYLE = {
-  open: { dot: "hsl(220 6% 55%)", text: "text-dim" },
-  in_progress: { dot: "hsl(197 74% 55%)", text: "text-accent" },
-  in_review: { dot: "hsl(43 82% 56%)", text: "text-caution" },
-  blocked: { dot: "hsl(12 62% 58%)", text: "text-warn" },
-  completed: { dot: "hsl(150 46% 50%)", text: "text-ok" },
+  open: { dot: STATUS_COLOR.open, text: "text-dim" },
+  in_progress: { dot: STATUS_COLOR.in_progress, text: "text-progress" },
+  in_review: { dot: STATUS_COLOR.in_review, text: "text-accent" },
+  blocked: { dot: STATUS_COLOR.blocked, text: "text-blocked" },
+  completed: { dot: STATUS_COLOR.completed, text: "text-ok" },
 };
 
 export function StatusDot({ status, size = 7 }) {
   return (
     <span
-      style={{ width: size, height: size, background: STATUS_STYLE[status]?.dot || "hsl(220 6% 55%)" }}
+      style={{ width: size, height: size, background: STATUS_COLOR[status] || STATUS_COLOR.open }}
       className="inline-block shrink-0 rounded-full"
     />
   );
@@ -64,7 +77,7 @@ export function TaskStatusBadge({ status }) {
 export function BlockerChip({ blocker }) {
   if (!blocker) return null;
   const kind = blocker.kind === "client_side" ? "CLIENT" : "INTERNAL";
-  return <Chip tone="warn">Blocked · {kind}</Chip>;
+  return <Chip tone="blocked">Blocked · {kind}</Chip>;
 }
 
 export function PriorityChip({ priority }) {

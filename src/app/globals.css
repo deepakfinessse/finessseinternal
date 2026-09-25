@@ -27,8 +27,14 @@
   --text-faint: #8b8b96;
 
   --accent: var(--primary-color);
-  --warn: #c05f3d; /* terracotta — overdue / critical / blocked */
-  --warn-bg: rgba(192, 95, 61, 0.12);
+  /* Task status colours: In Progress = yellow, Overdue = red, Completed =
+     green (--ok), In Review = --accent blue, Blocked = orange. */
+  --warn: #dc2626; /* red — overdue / critical */
+  --warn-bg: rgba(220, 38, 38, 0.1);
+  --progress: #c89200; /* yellow — in progress (darkened so text stays legible on white) */
+  --progress-bg: rgba(234, 179, 8, 0.16);
+  --blocked: #e0701f; /* orange — blocked */
+  --blocked-bg: rgba(224, 112, 31, 0.12);
   --ok: #2f9e6d;
   --ok-bg: rgba(47, 158, 109, 0.12);
   --caution: #b7791f;
@@ -60,8 +66,12 @@
   --text-dim: #9a9aa3;
   --text-faint: #61616b;
 
-  --warn: #d5876a;
-  --warn-bg: rgba(213, 135, 106, 0.14);
+  --warn: #f87171;
+  --warn-bg: rgba(248, 113, 113, 0.14);
+  --progress: #facc15;
+  --progress-bg: rgba(250, 204, 21, 0.14);
+  --blocked: #fb923c;
+  --blocked-bg: rgba(251, 146, 60, 0.14);
   --ok: #5fc99b;
   --ok-bg: rgba(95, 201, 155, 0.13);
   --caution: #d8a13f;
@@ -97,6 +107,10 @@
   --color-warn-bg: var(--warn-bg);
   --color-ok: var(--ok);
   --color-ok-bg: var(--ok-bg);
+  --color-progress: var(--progress);
+  --color-progress-bg: var(--progress-bg);
+  --color-blocked: var(--blocked);
+  --color-blocked-bg: var(--blocked-bg);
   --color-caution: var(--caution);
   --color-caution-bg: var(--caution-bg);
   --color-action: var(--action);

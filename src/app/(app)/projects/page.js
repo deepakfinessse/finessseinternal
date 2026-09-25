@@ -14,7 +14,8 @@ import { ProjectForm } from "./project-forms";
 export const metadata = { title: "Projects · Finessse" };
 
 function MiniStat({ label, value, tone }) {
-  const c = tone === "warn" ? "text-warn" : tone === "caution" ? "text-caution" : "";
+  const c =
+    { warn: "text-warn", caution: "text-caution", blocked: "text-blocked", progress: "text-progress", ok: "text-ok" }[tone] || "";
   return (
     <div>
       <div className="mono text-[9px] uppercase tracking-[0.13em] text-faint">{label}</div>
@@ -68,7 +69,7 @@ function ProjectCard({ p }) {
       <div className="grid grid-cols-4 gap-3 border-t border-line pt-4">
         <MiniStat label="Tasks" value={total} />
         <MiniStat label="Overdue" value={p.taskCounts.overdue} tone={p.taskCounts.overdue ? "warn" : undefined} />
-        <MiniStat label="Blocked" value={p.taskCounts.blocked} tone={p.taskCounts.blocked ? "caution" : undefined} />
+        <MiniStat label="Blocked" value={p.taskCounts.blocked} tone={p.taskCounts.blocked ? "blocked" : undefined} />
         <MiniStat
           label="Days left"
           value={p.daysLeft == null ? "—" : p.daysLeft < 0 ? Math.abs(p.daysLeft) : p.daysLeft}

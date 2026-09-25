@@ -38,9 +38,9 @@ export default async function DashboardPage() {
       {tStats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Stat label="Tasks" value={tStats.total} />
-          <Stat label="In progress" value={tStats.in_progress} />
-          <Stat label="In review" value={tStats.in_review} />
-          <Stat label="Blocked" value={tStats.blocked} tone={tStats.blocked ? "warn" : undefined} />
+          <Stat label="In progress" value={tStats.in_progress} tone={tStats.in_progress ? "progress" : undefined} />
+          <Stat label="In review" value={tStats.in_review} tone={tStats.in_review ? "accent" : undefined} />
+          <Stat label="Blocked" value={tStats.blocked} tone={tStats.blocked ? "blocked" : undefined} />
           <Stat label="Overdue" value={tStats.overdue} tone={tStats.overdue ? "warn" : undefined} />
           <Stat label="Awaiting approval" value={tStats.awaitingApproval} />
         </div>

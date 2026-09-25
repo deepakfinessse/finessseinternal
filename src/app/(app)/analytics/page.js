@@ -10,7 +10,7 @@ import {
 import { listDivisions } from "@/lib/divisions";
 import { TASK_STATUSES, STATUS_LABEL } from "@/lib/pm-constants";
 import { Card, Stat, EmptyState, fmtDate } from "@/components/ui";
-import { TaskStatusBadge, OverdueTag } from "@/components/pm-ui";
+import { TaskStatusBadge, OverdueTag, STATUS_COLOR, OVERDUE_COLOR } from "@/components/pm-ui";
 
 export const metadata = { title: "Admin intelligence · Finessse" };
 
@@ -156,7 +156,7 @@ export default async function AnalyticsPage() {
                   {TASK_STATUSES.map((s) => (
                     <th key={s} className="px-1 font-semibold text-gray">{STATUS_LABEL[s]}</th>
                   ))}
-                  <th className="px-1 font-semibold text-secondary">Overdue</th>
+                  <th className="px-1 font-semibold text-warn">Overdue</th>
                 </tr>
               </thead>
               <tbody>
@@ -171,7 +171,7 @@ export default async function AnalyticsPage() {
                           className="rounded text-center font-semibold"
                           style={{
                             backgroundColor: n
-                              ? `color-mix(in srgb, var(--primary-color) ${Math.round((n / heatMax) * 70) + 12}%, transparent)`
+                              ? `color-mix(in srgb, ${STATUS_COLOR[s]} ${Math.round((n / heatMax) * 70) + 12}%, transparent)`
                               : "transparent",
                           }}
                         >
@@ -183,7 +183,7 @@ export default async function AnalyticsPage() {
                       className="rounded text-center font-semibold"
                       style={{
                         backgroundColor: heatmap[d.key]?.overdue
-                          ? `color-mix(in srgb, var(--secondary-color) ${Math.round(((heatmap[d.key].overdue) / heatMax) * 70) + 12}%, transparent)`
+                          ? `color-mix(in srgb, ${OVERDUE_COLOR} ${Math.round(((heatmap[d.key].overdue) / heatMax) * 70) + 12}%, transparent)`
                           : "transparent",
                       }}
                     >
