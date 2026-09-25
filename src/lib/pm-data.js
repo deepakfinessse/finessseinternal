@@ -264,7 +264,8 @@ export function serializeTask(t, { project, users, dmap = {} } = {}) {
     // Derived count for the board card — every update that carries a file/link.
     attachments: (t.updates || []).filter((e) => e.attachment).map((e) => ({ id: e.id })),
     // Hours logged at each in_progress → in_review submission — task-level
-    // time management, visible to managers/admins (task:approve).
+    // time management, visible to managers/admins (task:approve) and to the
+    // task's own assignee / collaborators.
     timeLogs: (t.timeLogs || []).map((l) => ({
       hours: l.hours,
       note: l.note || "",

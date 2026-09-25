@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { ActionForm, SubmitButton } from "@/components/action-form";
-import { Field, inputClass } from "@/components/ui";
+import { Avatar, Field, fmtDateTime, inputClass } from "@/components/ui";
 import { Icon } from "@/components/icons";
-import { PRIORITIES, BLOCKER_KINDS, fmtDuration } from "@/lib/pm-constants";
+import { PRIORITIES, BLOCKER_KINDS, fmtDuration, MAX_UPDATE_WORDS, countWords } from "@/lib/pm-constants";
 import {
   createTask,
   updateTask,
@@ -247,33 +248,117 @@ export function AssignForm({ task, people }) {
 /* ----------------------------------------------------------------- updates */
 
 /**
+ * Chat-style thread: your posts on the right, everyone else's on the left
+ * with their avatar, the composer pinned underneath. Scrolls to the newest
+ * post on load and whenever one is added.
+ */
+export function UpdateThread({ taskId, updates, meId, canRemoveAny, canContribute }) {
+  const bottomRef = useRef(null);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "nearest" });
+  }, [updates.length]);
+
+  let prevBy = null;
+  return (
+    <div className="flex flex-col">
+      <div className="max-h-[480px] space-y-2 overflow-y-auto rounded-[12px] bg-surface-2/40 p-3">
+        {updates.length === 0 ? (
+          <p className="py-6 text-center text-[12.5px] text-faint">No updates yet — start the conversation.</p>
+        ) : (
+          updates.map((entry) => {
+            const mine = entry.by?.id === meId;
+            const sameAuthor = entry.by?.id === prevBy;
+            prevBy = entry.by?.id;
+            return (
+              <UpdateBubble
+                key={entry.id}
+                entry={entry}
+                mine={mine}
+                showAuthor={!sameAuthor}
+                canRemove={canRemoveAny || mine}
+                taskId={taskId}
+              />
+            );
+          })
+        )}
+        <div ref={bottomRef} />
+      </div>
+      {canContribute && (
+        <div className="mt-3">
+          <UpdateComposer taskId={taskId} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UpdateBubble({ entry, mine, showAuthor, canRemove, taskId }) {
+  const name = entry.by?.name || entry.by?.email || "Someone";
+  return (
+    <div className={`group/msg flex items-end gap-2 ${mine ? "flex-row-reverse" : ""} ${showAuthor ? "pt-2" : ""}`}>
+      {!mine && (
+        <span className="w-7 shrink-0">
+          {showAuthor && <Avatar name={entry.by?.name} email={entry.by?.email} src={entry.by?.image} size={28} />}
+        </span>
+      )}
+      <div className={`flex max-w-[75%] flex-col ${mine ? "items-end" : "items-start"}`}>
+        {showAuthor && !mine && (
+          <span className="mb-0.5 px-1 text-[10.5px] font-semibold text-faint">{name}</span>
+        )}
+        <div
+          className={`rounded-[12px] px-3 py-2 text-[13px] leading-relaxed ${
+            mine ? "rounded-br-[4px] bg-action text-action-text" : "rounded-bl-[4px] bg-surface text-text shadow-sm"
+          }`}
+        >
+          {entry.text && <p className="whitespace-pre-wrap break-words">{entry.text}</p>}
+          {entry.attachment && (
+            <a
+              href={entry.attachment.url}
+              target="_blank"
+              rel="noreferrer"
+              className={`flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium hover:underline ${
+                entry.text ? "mt-1.5" : ""
+              } ${mine ? "bg-white/15" : "bg-surface-2"}`}
+            >
+              <Icon name={entry.attachment.type === "gdoc" ? "file" : "link"} size={14} className="shrink-0" />
+              <span className="truncate">{entry.attachment.label}</span>
+            </a>
+          )}
+        </div>
+        <span className="mt-0.5 flex items-center gap-1.5 px-1 text-[9.5px] text-faint">
+          {fmtDateTime(entry.at)}
+          {canRemove && <RemoveUpdateButton taskId={taskId} updateId={entry.id} />}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
  * One composer, one submit — a message and an attached file/link go up
  * together as a single post. The attachment fields stay collapsed until
  * asked for, so the common case (just a message) reads as one input.
+ * Enter sends, Shift+Enter adds a new line.
  */
 export function UpdateComposer({ taskId }) {
   const [attaching, setAttaching] = useState(false);
+  // Controlled so a failed post keeps the draft (React resets uncontrolled
+  // fields after every form action) and so the word counter stays in sync.
+  const [text, setText] = useState("");
+  const words = countWords(text);
+  const overLimit = words > MAX_UPDATE_WORDS;
   return (
     <ActionForm
       action={addTaskUpdate}
       hidden={{ id: taskId }}
       className="flex flex-col gap-2"
-      onDone={() => setAttaching(false)}
+      onDone={() => {
+        setAttaching(false);
+        setText("");
+      }}
     >
-      <div className="flex items-start gap-2">
-        <input name="text" placeholder="Write a message…" className={inputClass} />
-        <SubmitButton variant="secondary">Post</SubmitButton>
-      </div>
-      <button
-        type="button"
-        onClick={() => setAttaching((a) => !a)}
-        className="inline-flex w-fit items-center gap-1.5 text-[12px] text-dim hover:text-text"
-      >
-        <Icon name="link" size={13} />
-        {attaching ? "Remove attachment" : "Attach a file or link"}
-      </button>
       {attaching && (
-        <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2 rounded-[10px] border border-line bg-surface-2/40 p-2.5">
           <Field label="Type">
             <select name="attachType" defaultValue="gdoc" className={inputClass}>
               <option value="gdoc">Google Docs link</option>
@@ -288,14 +373,73 @@ export function UpdateComposer({ taskId }) {
           </Field>
         </div>
       )}
+      <div className="flex items-end gap-2">
+        <button
+          type="button"
+          onClick={() => setAttaching((a) => !a)}
+          title={attaching ? "Remove attachment" : "Attach a file or link"}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-line-strong transition-colors hover:bg-surface-2 hover:text-text ${
+            attaching ? "bg-surface-2 text-text" : "text-dim"
+          }`}
+        >
+          <Icon name={attaching ? "close" : "paperclip"} size={16} />
+        </button>
+        <textarea
+          name="text"
+          rows={1}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (!overLimit) e.currentTarget.form?.requestSubmit();
+            }
+          }}
+          placeholder="Write a message…"
+          aria-invalid={overLimit}
+          className="max-h-32 min-h-9 flex-1 resize-none rounded-[10px] border border-line-strong bg-surface px-3 py-2 text-[13px] outline-none placeholder:text-faint focus:border-line"
+        />
+        <SendButton disabled={overLimit} />
+      </div>
+      {words > 0 && (
+        <span className={`text-right text-[11px] tabular-nums ${overLimit ? "text-secondary" : "text-faint"}`}>
+          {words}/{MAX_UPDATE_WORDS} words{overLimit ? " — too long" : ""}
+        </span>
+      )}
     </ActionForm>
+  );
+}
+
+function SendButton({ disabled }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending || disabled}
+      className="flex h-9 shrink-0 items-center justify-center rounded-[10px] bg-action px-3.5 text-[13px] font-semibold text-action-text transition-opacity hover:opacity-90 disabled:opacity-50"
+    >
+      {pending ? "Sending…" : "Send"}
+    </button>
+  );
+}
+
+function RemoveSubmit() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="text-faint opacity-0 transition-opacity hover:text-secondary focus:opacity-100 group-hover/msg:opacity-100 pointer-coarse:opacity-100 disabled:opacity-50"
+    >
+      {pending ? "Removing…" : "Remove"}
+    </button>
   );
 }
 
 export function RemoveUpdateButton({ taskId, updateId }) {
   return (
-    <ActionForm action={removeTaskUpdate} hidden={{ id: taskId, updateId }}>
-      <SubmitButton variant="ghost">Remove</SubmitButton>
+    <ActionForm action={removeTaskUpdate} hidden={{ id: taskId, updateId }} className="inline">
+      <RemoveSubmit />
     </ActionForm>
   );
 }

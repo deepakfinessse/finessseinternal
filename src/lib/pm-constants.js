@@ -63,6 +63,14 @@ export function isOverdue(task) {
   return new Date(task.endDate).getTime() < Date.now();
 }
 
+/* task update thread */
+export const MAX_UPDATE_WORDS = 100;
+
+export function countWords(text) {
+  const t = String(text || "").trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+
 /* estimated time — stored as whole minutes, entered/shown as hours + minutes */
 export const MAX_ESTIMATE_MINUTES = 999 * 60;
 

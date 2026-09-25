@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export function SubmitButton({ children, variant = "primary", className = "" }) {
+export function SubmitButton({ children, variant = "primary", className = "", disabled = false }) {
   const { pending } = useFormStatus();
   const styles =
     variant === "primary"
@@ -16,7 +16,7 @@ export function SubmitButton({ children, variant = "primary", className = "" }) 
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
       className={`inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold disabled:opacity-50 ${styles} ${className}`}
     >
       {pending ? "Working…" : children}

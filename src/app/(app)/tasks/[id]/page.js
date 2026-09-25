@@ -6,6 +6,7 @@ import { listUsers } from "@/lib/data";
 import { listAudit } from "@/lib/audit";
 import { STATUS_LABEL, fmtDuration } from "@/lib/pm-constants";
 import { Card, Badge, EmptyState, fmtDate, fmtDateTime, relTime } from "@/components/ui";
+import { Icon } from "@/components/icons";
 import {
   TaskStatusBadge,
   PriorityChip,
@@ -19,8 +20,7 @@ import {
   TaskEditForm,
   ScheduleForm,
   AssignForm,
-  RemoveUpdateButton,
-  UpdateComposer,
+  UpdateThread,
   ClientVisibleToggle,
   DeleteTaskButton,
 } from "../task-forms";
@@ -133,46 +133,39 @@ export default async function TaskDetailPage({ params }) {
             </Card>
           )}
 
-          <Card title="Updates" description="Messages and files, in one thread.">
-            {task.updates.length === 0 ? (
-              <p className="text-sm text-gray">No updates yet.</p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {task.updates.map((entry) => (
-                  <li key={entry.id} className="text-[13px] leading-relaxed">
-                    <div className="mb-0.5 flex items-center gap-1.5 text-[11px] text-faint">
-                      <span className="font-semibold text-dim">{entry.by?.name || entry.by?.email || "Someone"}</span>
-                      <span>·</span>
-                      <span>{fmtDateTime(entry.at)}</span>
-                      {(canEdit || entry.by?.id === user.id) && (
-                        <RemoveUpdateButton taskId={task.id} updateId={entry.id} />
-                      )}
-                    </div>
-                    {entry.text && <p className="whitespace-pre-wrap">{entry.text}</p>}
-                    {entry.attachment && (
-                      <a
-                        href={entry.attachment.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-flex min-w-0 items-center gap-1 truncate text-primary hover:underline"
-                      >
-                        {entry.attachment.type === "gdoc" ? "📄" : "📎"} {entry.attachment.label}
-                      </a>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {canContribute && (
-              <div className="mt-3 border-t border-gray/15 pt-3">
-                <UpdateComposer taskId={task.id} />
+          <details className="card group p-5" open>
+            <summary className="flex cursor-pointer list-none items-start justify-between gap-3 [&::-webkit-details-marker]:hidden">
+              <div>
+                <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+                  Updates
+                  <span className="ml-2 text-[12px] font-normal text-faint">{task.updates.length}</span>
+                </h2>
+                <p className="mt-1 text-[13px] text-dim">Messages and files, in one thread.</p>
               </div>
-            )}
-          </Card>
+              <Icon name="chevronDown" size={16} className="mt-0.5 text-dim transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="mt-4">
+              <UpdateThread
+                taskId={task.id}
+                updates={task.updates}
+                meId={user.id}
+                canRemoveAny={canEdit}
+                canContribute={canContribute}
+              />
+            </div>
+          </details>
 
           {task.blockers?.length > 0 && (
-            <Card title="Blocker log" description={`${task.blockers.length} raised`}>
-              <ul className="flex flex-col divide-y divide-gray/15">
+            // Starts open while a blocker is active — that's when it matters.
+            <details className="card group p-5" open={!!task.blocker}>
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-3 [&::-webkit-details-marker]:hidden">
+                <div>
+                  <h2 className="text-[15px] font-semibold tracking-[-0.01em]">Blocker log</h2>
+                  <p className="mt-1 text-[13px] text-dim">{task.blockers.length} raised</p>
+                </div>
+                <Icon name="chevronDown" size={16} className="mt-0.5 text-dim transition-transform group-open:rotate-180" />
+              </summary>
+              <ul className="mt-4 flex flex-col divide-y divide-gray/15">
                 {[...task.blockers].reverse().map((b, i) => (
                   <li key={i} className="py-3 first:pt-0 last:pb-0">
                     <p className="text-xs text-gray">
@@ -194,11 +187,19 @@ export default async function TaskDetailPage({ params }) {
                   </li>
                 ))}
               </ul>
-            </Card>
+            </details>
           )}
 
           {user.can("audit:read") && (
-            <Card title="Activity">
+            <details className="card group p-5">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+                <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+                  Activity
+                  <span className="ml-2 text-[12px] font-normal text-faint">{activity.length}</span>
+                </h2>
+                <Icon name="chevronDown" size={16} className="text-dim transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="mt-4">
               {activity.length === 0 ? (
                 <p className="text-sm text-gray">No recorded activity.</p>
               ) : (
@@ -211,7 +212,8 @@ export default async function TaskDetailPage({ params }) {
                   ))}
                 </ul>
               )}
-            </Card>
+              </div>
+            </details>
           )}
         </div>
 
@@ -220,7 +222,7 @@ export default async function TaskDetailPage({ params }) {
             <LifecycleControls task={task} canApprove={canApprove} />
           </Card>
 
-          {canApprove && (
+          {(canApprove || isOwner) && (
             <Card title="Time logged" description="Estimated time vs. hours the assignee reported when submitting for review.">
               <TimeVsEstimate estimateMinutes={task.estimateMinutes} loggedHours={task.totalLoggedHours} hasLogs={task.timeLogs.length > 0} />
               {task.timeLogs.length === 0 ? (

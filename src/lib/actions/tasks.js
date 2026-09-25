@@ -15,6 +15,8 @@ import {
   canForward,
   BLOCKER_KINDS,
   readDuration,
+  MAX_UPDATE_WORDS,
+  countWords,
 } from "@/lib/pm-constants";
 
 const oid = (id) => new ObjectId(String(id));
@@ -342,6 +344,9 @@ export async function addTaskUpdate(_prev, formData) {
   const hasAttachment = !!(attachLabel || attachUrl);
   if (!text && !hasAttachment) {
     return { ok: false, error: "Write a message or attach a file/link." };
+  }
+  if (countWords(text) > MAX_UPDATE_WORDS) {
+    return { ok: false, error: `Keep updates to ${MAX_UPDATE_WORDS} words or fewer.` };
   }
   if (hasAttachment) {
     if (!attachLabel || !attachUrl) {
