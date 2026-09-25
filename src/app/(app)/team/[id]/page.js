@@ -77,25 +77,8 @@ export default async function AssigneeProfilePage({ params }) {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
-          <Card title="Profile" description="Individual information, skill tags, contact.">
+          <Card title="Profile" description="Individual information and contact.">
             <ProfileEditForm person={person} canEdit={canEdit} />
-          </Card>
-
-          <Card title="Personal settings" description="Set by the assignee.">
-            <dl className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <dt className="text-gray">Email notifications</dt>
-                <dd>{person.settings?.emailNotifications === false ? "Off" : "On"}</dd>
-              </div>
-              <div>
-                <dt className="text-gray">Weekly digest</dt>
-                <dd>{person.settings?.weeklyDigest ? "On" : "Off"}</dd>
-              </div>
-              <div>
-                <dt className="text-gray">UI density</dt>
-                <dd className="capitalize">{person.settings?.density || "comfortable"}</dd>
-              </div>
-            </dl>
           </Card>
 
           {viewer.can("session:read") && (

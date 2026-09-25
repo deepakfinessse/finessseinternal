@@ -104,7 +104,7 @@ export default async function TaskDetailPage({ params }) {
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-faint">
           <span className="inline-flex items-center gap-1.5">
-            <DivisionDot division={task.division} />
+            <DivisionDot />
             {task.divisionLabel}
           </span>
           <span>·</span>

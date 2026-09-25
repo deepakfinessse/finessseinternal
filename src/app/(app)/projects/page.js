@@ -58,7 +58,7 @@ function ProjectCard({ p }) {
               key={d}
               className="mono inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[9.5px] uppercase tracking-[0.09em] text-dim"
             >
-              <DivisionDot division={d} size={6} />
+              <DivisionDot size={6} />
               {p.divisionLabels[i] || d}
             </span>
           ))

@@ -13,8 +13,18 @@ const ProfileInput = z.object({
   name: z.string().min(1).max(120),
   title: z.string().max(120).optional().default(""),
   phone: z.string().max(40).optional().default(""),
-  timezone: z.string().max(60).optional().default(""),
-  skills: z.string().max(600).optional().default(""),
+  // "YYYY-MM-DD" from <input type="date">, kept as a plain string so no
+  // timezone can shift it onto the neighbouring day.
+  dateOfBirth: z
+    .string()
+    .optional()
+    .default("")
+    .refine((v) => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v), "Enter a valid date of birth.")
+    .refine((v) => {
+      if (v === "") return true;
+      const d = new Date(`${v}T00:00:00Z`);
+      return !Number.isNaN(d.getTime()) && d.getUTCFullYear() >= 1900 && d <= new Date();
+    }, "Date of birth must be a real date in the past."),
 });
 
 export async function updateProfile(_prev, formData) {
@@ -30,20 +40,11 @@ export async function updateProfile(_prev, formData) {
     name: formData.get("name"),
     title: formData.get("title") || "",
     phone: formData.get("phone") || "",
-    timezone: formData.get("timezone") || "",
-    skills: formData.get("skills") || "",
+    dateOfBirth: formData.get("dateOfBirth") || "",
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
-  const skills = [
-    ...new Set(
-      parsed.data.skills
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    ),
-  ].slice(0, 40);
 
   const { users } = await collections();
   await users.updateOne(
@@ -53,8 +54,7 @@ export async function updateProfile(_prev, formData) {
         name: parsed.data.name,
         title: parsed.data.title,
         phone: parsed.data.phone,
-        timezone: parsed.data.timezone,
-        skills,
+        dateOfBirth: parsed.data.dateOfBirth || null,
         updatedAt: new Date(),
       },
     },
@@ -64,7 +64,7 @@ export async function updateProfile(_prev, formData) {
     action: isSelf ? "profile.self_update" : "profile.update",
     targetType: "user",
     targetId,
-    meta: { skills },
+    meta: {},
   });
   revalidatePath(`/team/${targetId}`);
   revalidatePath("/team");
@@ -72,23 +72,61 @@ export async function updateProfile(_prev, formData) {
   return { ok: true };
 }
 
-export async function updateOwnSettings(_prev, formData) {
+/**
+ * First-login profile setup (/complete-profile). Name, phone and date of birth
+ * are required here; saving ticks the "profile" onboarding step, which lifts
+ * the gate in the (app) layout and moves the user on to the next step.
+ */
+export async function completeMyProfile(_prev, formData) {
   const me = await getCurrentUser();
   if (!me) return { ok: false, error: "Not signed in." };
-  const settings = {
-    emailNotifications: formData.get("emailNotifications") === "on",
-    weeklyDigest: formData.get("weeklyDigest") === "on",
-    density: ["comfortable", "compact"].includes(String(formData.get("density")))
-      ? String(formData.get("density"))
-      : "comfortable",
-  };
-  const { users } = await collections();
+  if (me.status !== "active") return { ok: false, error: "Account not active." };
+
+  const parsed = ProfileInput.safeParse({
+    name: String(formData.get("name") || "").trim(),
+    title: String(formData.get("title") || "").trim(),
+    phone: String(formData.get("phone") || "").trim(),
+    dateOfBirth: formData.get("dateOfBirth") || "",
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+  }
+  const d = parsed.data;
+  if (!d.name) return { ok: false, error: "Enter your full name." };
+  if (!d.phone) return { ok: false, error: "Enter your phone number." };
+  if (!/^[+\d][\d\s()-]{6,}$/.test(d.phone)) return { ok: false, error: "Enter a valid phone number." };
+  if (!d.dateOfBirth) return { ok: false, error: "Enter your date of birth." };
+
+  const { users, settings } = await collections();
+  const cfg = await settings.findOne({ _id: "onboarding" });
+  const done = new Set(me.onboarding?.stepsCompleted || []);
+  done.add("profile");
+  const complete = (cfg?.steps || []).every((s) => done.has(s.key));
+  const now = new Date();
+
   await users.updateOne(
     { _id: oid(me.id) },
-    { $set: { settings, updatedAt: new Date() } },
+    {
+      $set: {
+        name: d.name,
+        title: d.title,
+        phone: d.phone,
+        dateOfBirth: d.dateOfBirth,
+        "onboarding.stepsCompleted": [...done],
+        "onboarding.completedAt": complete ? now : null,
+        updatedAt: now,
+      },
+    },
   );
-  revalidatePath("/profile");
-  return { ok: true };
+  await writeAudit({
+    actorId: me.id,
+    action: "profile.first_setup",
+    targetType: "user",
+    targetId: me.id,
+    meta: {},
+  });
+  revalidatePath("/", "layout");
+  return { ok: true, redirect: complete ? "/dashboard" : "/welcome" };
 }
 
 const STATUSES = ["active", "suspended", "deactivated"];

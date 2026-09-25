@@ -1,40 +1,18 @@
 import { STATUS_LABEL, APPROVAL_LABEL, overdueDays } from "@/lib/pm-constants";
 import { Chip } from "@/components/ui";
 
-/* --------------------------------------------------------- division colour */
+/* ---------------------------------------------------------------- division */
 
-// Divisions are a dynamic, super-admin managed set (see src/lib/divisions.js),
-// so colour and the task-code abbreviation are derived deterministically from
-// the key rather than kept in a static map — new divisions just work.
-const DIVISION_HUES = [
-  "265 62% 63%", "35 82% 56%", "150 46% 50%", "197 71% 52%",
-  "12 65% 58%", "330 55% 60%", "220 55% 58%", "95 40% 48%",
-];
-
-function hashSeed(key = "") {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
-  return h;
+// Divisions aren't colour-coded — every division gets the same dot in the
+// text colour (black in light mode, flips to white in dark mode).
+export function DivisionDot({ size = 7 }) {
+  return <span style={{ width: size, height: size }} className="inline-block shrink-0 rounded-full bg-text" />;
 }
 
-export function divisionHsl(key) {
-  if (!key) return "220 8% 55%";
-  return DIVISION_HUES[hashSeed(key) % DIVISION_HUES.length];
-}
-
-export function DivisionDot({ division, size = 7 }) {
-  return (
-    <span
-      style={{ width: size, height: size, background: `hsl(${divisionHsl(division)})` }}
-      className="inline-block shrink-0 rounded-full"
-    />
-  );
-}
-
-export function DivisionLabel({ division, label }) {
+export function DivisionLabel({ label }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-dim">
-      <DivisionDot division={division} />
+      <DivisionDot />
       {label}
     </span>
   );

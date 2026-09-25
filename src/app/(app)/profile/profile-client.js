@@ -2,8 +2,12 @@
 
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Field, inputClass, Badge, relTime } from "@/components/ui";
-import { updateProfile, updateOwnSettings } from "@/lib/actions/team";
+import { updateProfile } from "@/lib/actions/team";
 import { revokeSession, revokeAllOtherSessions } from "@/lib/actions/sessions";
+
+function todayInput() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export function MyProfileForm({ me }) {
   return (
@@ -23,44 +27,11 @@ export function MyProfileForm({ me }) {
         <Field label="Phone">
           <input name="phone" defaultValue={me.phone} className={inputClass} />
         </Field>
-        <Field label="Timezone" hint="e.g. Asia/Kolkata">
-          <input name="timezone" defaultValue={me.timezone} className={inputClass} />
+        <Field label="Date of birth">
+          <input type="date" name="dateOfBirth" defaultValue={me.dateOfBirth} max={todayInput()} className={inputClass} />
         </Field>
       </div>
-      <Field label="Skill tags" hint="Comma-separated">
-        <input name="skills" defaultValue={me.skills.join(", ")} className={inputClass} />
-      </Field>
       <SubmitButton>Save profile</SubmitButton>
-    </ActionForm>
-  );
-}
-
-export function MySettingsForm({ settings }) {
-  return (
-    <ActionForm action={updateOwnSettings} successMessage="Preferences saved." className="flex flex-col gap-3">
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          name="emailNotifications"
-          defaultChecked={settings?.emailNotifications !== false}
-        />
-        Email notifications
-      </label>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="weeklyDigest" defaultChecked={!!settings?.weeklyDigest} />
-        Weekly digest
-      </label>
-      <Field label="Interface density">
-        <select
-          name="density"
-          defaultValue={settings?.density || "comfortable"}
-          className={inputClass}
-        >
-          <option value="comfortable">Comfortable</option>
-          <option value="compact">Compact</option>
-        </select>
-      </Field>
-      <SubmitButton>Save preferences</SubmitButton>
     </ActionForm>
   );
 }

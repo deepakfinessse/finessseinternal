@@ -12,8 +12,7 @@ function serializeUser(u, rolesById) {
     status: u.status || "active",
     title: u.title || "",
     phone: u.phone || "",
-    timezone: u.timezone || "",
-    skills: u.skills || [],
+    dateOfBirth: u.dateOfBirth || "",
     settings: u.settings || {},
     assignedVersion: u.assignedVersion || null,
     onboarding: u.onboarding || { stepsCompleted: [], completedAt: null },
@@ -72,7 +71,6 @@ export async function listUsers({ status, roleId, q } = {}) {
     query.$or = [
       { name: { $regex: q, $options: "i" } },
       { email: { $regex: q, $options: "i" } },
-      { skills: { $regex: q, $options: "i" } },
     ];
   }
   const docs = await users.find(query).sort({ createdAt: -1, _id: -1 }).toArray();

@@ -9,7 +9,7 @@ import {
   divisionLoad,
 } from "@/lib/pm-data";
 import { PageHeader, Card, EmptyState, Avatar } from "@/components/ui";
-import { RingGauge, Sparkline, RateBar, divisionHsl } from "@/components/pm-ui";
+import { RingGauge, Sparkline, RateBar } from "@/components/pm-ui";
 import { Icon } from "@/components/icons";
 import { BriefColumn } from "./briefs";
 
@@ -199,8 +199,8 @@ export default async function ReportsPage({ searchParams }) {
                       <span className="w-40 shrink-0 truncate text-dim">{r.label}</span>
                       <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-surface-3">
                         <span
-                          className="absolute inset-y-0 left-0 rounded-full"
-                          style={{ width: `${pct}%`, background: `hsl(${divisionHsl(r.division)})` }}
+                          className="absolute inset-y-0 left-0 rounded-full bg-text"
+                          style={{ width: `${pct}%` }}
                         />
                       </span>
                       <span className="w-12 shrink-0 text-right font-mono font-semibold">{r.hours}h</span>

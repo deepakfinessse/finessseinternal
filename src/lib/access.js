@@ -61,8 +61,7 @@ export async function getCurrentUser() {
     status: user.status || "active",
     title: user.title || "",
     phone: user.phone || "",
-    timezone: user.timezone || "",
-    skills: user.skills || [],
+    dateOfBirth: user.dateOfBirth || "",
     settings: user.settings || {},
     assignedVersion: user.assignedVersion || null,
     onboarding: {
@@ -103,6 +102,16 @@ export async function requireUser() {
     redirect("/suspended");
   }
   return user;
+}
+
+/**
+ * First-login gate: until the "profile" onboarding step is done, a user must
+ * fill in their profile (/complete-profile) before reaching anything else.
+ * Super admins are exempt — the bootstrap account never goes through it.
+ */
+export function needsProfileSetup(user) {
+  if (!user || user.can("*")) return false;
+  return !(user.onboarding?.stepsCompleted || []).includes("profile");
 }
 
 /** requireUser + a permission gate. Redirects to /403 when denied. */

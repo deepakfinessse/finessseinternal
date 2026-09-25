@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/access";
+import { redirect } from "next/navigation";
+import { requireUser, needsProfileSetup } from "@/lib/access";
 import { touchSession } from "@/lib/session-tracking";
 import { taskStats } from "@/lib/pm-data";
 import { unreadChatCount } from "@/lib/chat";
@@ -13,6 +14,9 @@ import { signOut } from "@/auth";
 
 export default async function AppLayout({ children }) {
   const user = await requireUser();
+  // Every page in the app sits under this layout, so this one check makes the
+  // profile mandatory on first login.
+  if (needsProfileSetup(user)) redirect("/complete-profile");
   await touchSession();
 
   const can = (k) => user.can(k);
@@ -29,7 +33,7 @@ export default async function AppLayout({ children }) {
         { href: "/dashboard", label: "Pulse", icon: "pulse" },
         canTasks && { href: "/tasks", label: "Board", icon: "board" },
         canTasks && { href: "/timeline", label: "Timeline", icon: "timeline" },
-        canTasks && { href: "/heatmap", label: "Heatmap", icon: "heatmap" },
+        can("analytics:read") && { href: "/heatmap", label: "Heatmap", icon: "heatmap" },
         can("project:read") && { href: "/projects", label: "Projects", icon: "projects" },
       ].filter(Boolean),
     },

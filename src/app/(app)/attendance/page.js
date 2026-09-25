@@ -5,8 +5,25 @@ import { listUsers } from "@/lib/data";
 import { nowMs } from "@/lib/pm-constants";
 import { PageHeader, Card, EmptyState, Avatar, Field, inputClass } from "@/components/ui";
 import { Icon } from "@/components/icons";
+import { workModeLabel } from "@/lib/attendance-constants";
 
 export const metadata = { title: "Attendance · Finessse" };
+
+function ModeBadge({ modes }) {
+  if (!modes?.length) return null;
+  const wfh = modes.includes("wfh");
+  const label = modes.map((m) => workModeLabel(m, { short: true })).join(" + ");
+  return (
+    <span
+      className={`rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${
+        wfh ? "bg-caution-bg text-caution" : "bg-ok-bg text-ok"
+      }`}
+      title={modes.map((m) => workModeLabel(m)).join(" + ")}
+    >
+      {label}
+    </span>
+  );
+}
 
 function fmtHours(ms) {
   const totalMinutes = Math.round(ms / 60000);
@@ -70,7 +87,10 @@ export default async function AttendancePage({ searchParams }) {
             {myDailyRows.map((r) => (
               <li key={r.day} className="flex items-center justify-between gap-3 py-2.5">
                 <div>
-                  <div className="font-medium">{fmtDayKey(r.day)}</div>
+                  <div className="flex items-center gap-2 font-medium">
+                    {fmtDayKey(r.day)}
+                    <ModeBadge modes={r.workModes} />
+                  </div>
                   <div className="text-xs text-gray">
                     {fmtTime(r.firstIn)} → {r.open ? "in progress" : fmtTime(r.lastOut)}
                     {r.sessionCount > 1 && ` · ${r.sessionCount} sessions`}
@@ -86,7 +106,7 @@ export default async function AttendancePage({ searchParams }) {
       {canSeeAll && (
         <Card
           title="Team report"
-          description="First in, last out and total hours, per person per day."
+          description="Status (Active / WFH), first in, last out and total hours, per person per day."
           action={
             <a
               href={exportHref}
@@ -136,7 +156,10 @@ export default async function AttendancePage({ searchParams }) {
                   <div className="flex items-center gap-2.5">
                     <Avatar name={r.user.name} email={r.user.email} src={r.user.image} size={24} />
                     <div>
-                      <div className="font-medium">{r.user.name || r.user.email}</div>
+                      <div className="flex items-center gap-2 font-medium">
+                        {r.user.name || r.user.email}
+                        <ModeBadge modes={r.workModes} />
+                      </div>
                       <div className="text-xs text-gray">
                         {fmtDayKey(r.day)} · {fmtTime(r.firstIn)} → {r.open ? "in progress" : fmtTime(r.lastOut)}
                       </div>

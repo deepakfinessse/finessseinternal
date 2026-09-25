@@ -27,7 +27,8 @@ const startOfDay = (d) => {
 
 export default async function HeatmapPage({ searchParams }) {
   const user = await requireUser();
-  if (!user.can("task:read") && !user.can("task:read:all")) redirect("/403");
+  // Team-wide load view — managers/admins only (analytics:read), not assignees.
+  if (!user.can("analytics:read")) redirect("/403");
   const sp = await searchParams;
   const view = VIEWS.some((v) => v.key === sp.view) ? sp.view : "due";
   const canSeeAll = user.can("task:read:all") || user.can("*");

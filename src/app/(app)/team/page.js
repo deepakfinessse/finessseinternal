@@ -25,7 +25,7 @@ export default async function TeamPage({ searchParams }) {
         <div>
           <h1 className="text-2xl font-heading">Assignees</h1>
           <p className="text-sm text-gray">
-            Profiles, skill tags, roles and operational status.
+            Profiles, roles and operational status.
           </p>
         </div>
         {user.can("assignee:invite") && (
@@ -71,7 +71,6 @@ export default async function TeamPage({ searchParams }) {
                 <tr className="border-b border-gray/20 text-left text-xs uppercase text-gray">
                   <th className="py-2 pr-3 font-semibold">Name</th>
                   <th className="py-2 pr-3 font-semibold">Roles</th>
-                  <th className="py-2 pr-3 font-semibold">Skills</th>
                   <th className="py-2 pr-3 font-semibold">Version</th>
                   <th className="py-2 pr-3 font-semibold">Status</th>
                   <th className="py-2 pr-3 font-semibold">Joined</th>
@@ -90,19 +89,6 @@ export default async function TeamPage({ searchParams }) {
                       {p.roles.map((r) => r.name).join(", ") ||
                         p.roleIds.map(roleName).join(", ") ||
                         "—"}
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <div className="flex flex-wrap gap-1">
-                        {p.skills.slice(0, 4).map((s) => (
-                          <span key={s} className="rounded bg-gray/15 px-1.5 py-0.5 text-xs">
-                            {s}
-                          </span>
-                        ))}
-                        {p.skills.length > 4 && (
-                          <span className="text-xs text-gray">+{p.skills.length - 4}</span>
-                        )}
-                        {p.skills.length === 0 && <span className="text-xs text-gray">—</span>}
-                      </div>
                     </td>
                     <td className="py-2.5 pr-3 text-xs">{p.assignedVersion || "—"}</td>
                     <td className="py-2.5 pr-3">

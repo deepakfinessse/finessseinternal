@@ -77,7 +77,7 @@ export default async function ProjectDetailPage({ params }) {
           {project.client && project.divisions.length > 0 && <span>·</span>}
           {project.divisions.map((d, i) => (
             <span key={d} className="inline-flex items-center gap-1.5">
-              <DivisionDot division={d} size={6} />
+              <DivisionDot size={6} />
               {project.divisionLabels[i] || d}
             </span>
           ))}
@@ -121,7 +121,7 @@ export default async function ProjectDetailPage({ params }) {
                         <span className="text-[13px] font-medium">{t.title}</span>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-faint">
                           <span className="inline-flex items-center gap-1">
-                            <DivisionDot division={t.division} size={6} />
+                            <DivisionDot size={6} />
                             {t.divisionLabel}
                           </span>
                           · {t.assignee?.name || t.assignee?.email || "unassigned"}

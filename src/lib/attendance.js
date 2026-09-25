@@ -21,6 +21,7 @@ function serialize(doc, userMap) {
       ? { id: String(u._id), name: u.name || "", email: u.email, image: u.image || null }
       : { id: String(doc.userId) },
     status: doc.status,
+    workMode: doc.workMode || null,
     startedAt: iso(doc.startedAt),
     stoppedAt: iso(doc.stoppedAt),
     // `totalMs` is live-as-of-now, for one-off renders (history/report).
@@ -86,9 +87,12 @@ export function summarizeByDay(sessions) {
         firstIn: s.startedAt,
         lastOut: null,
         open: false,
+        workModes: [],
       });
     }
     const row = byKey.get(key);
+    // A day can mix modes (e.g. office in the morning, WFH later) — keep each once.
+    if (s.workMode && !row.workModes.includes(s.workMode)) row.workModes.push(s.workMode);
     row.totalMs += s.totalMs;
     row.sessionCount += 1;
     if (s.startedAt < row.firstIn) row.firstIn = s.startedAt;

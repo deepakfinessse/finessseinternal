@@ -5,7 +5,7 @@
 export const PERMISSION_CATALOG = [
   { key: "assignee:read", group: "Assignees", description: "View assignee profiles and lists" },
   { key: "assignee:invite", group: "Assignees", description: "Invite new assignees" },
-  { key: "assignee:update", group: "Assignees", description: "Edit assignee profile, skills, settings" },
+  { key: "assignee:update", group: "Assignees", description: "Edit assignee profile and settings" },
   { key: "assignee:suspend", group: "Assignees", description: "Suspend or reactivate assignees" },
   { key: "assignee:delete", group: "Assignees", description: "Permanently remove assignees" },
 

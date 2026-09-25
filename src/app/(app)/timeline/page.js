@@ -10,7 +10,6 @@ import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-fi
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DeliveryFilters } from "@/components/delivery-filters";
 import { Icon } from "@/components/icons";
-import { divisionHsl } from "@/components/pm-ui";
 
 export const metadata = { title: "Timeline · Finessse" };
 
@@ -111,6 +110,30 @@ export default async function TimelinePage({ searchParams }) {
     return { left, width };
   };
 
+  // Stack a row's bars into lanes so none overlap: each bar takes the first
+  // lane whose previous bar has already ended (by drawn position, so the
+  // minimum-width stubs of very short tasks are respected too). The row then
+  // grows to fit however many lanes it needs.
+  const LANE_H = 30;
+  const BAR_H = 24;
+  const ROW_PAD = 12;
+  const gapPct = (4 / gridW) * 100; // ~4px breathing room between bars
+  const layoutRow = (rowTasks) => {
+    const placed = rowTasks
+      .map((t) => ({ t, g: barGeom(t) }))
+      .filter((b) => b.g)
+      .sort((a, b) => a.g.left - b.g.left || b.g.width - a.g.width);
+    const laneEnds = [];
+    for (const b of placed) {
+      let lane = laneEnds.findIndex((end) => end + gapPct <= b.g.left);
+      if (lane === -1) lane = laneEnds.length;
+      laneEnds[lane] = b.g.left + b.g.width;
+      b.lane = lane;
+    }
+    const lanes = Math.max(1, laneEnds.length);
+    return { placed, height: ROW_PAD * 2 + (lanes - 1) * LANE_H + BAR_H };
+  };
+
   const seg = (patch) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(sp)) {
@@ -191,7 +214,9 @@ export default async function TimelinePage({ searchParams }) {
                   className="pointer-events-none absolute bottom-0 top-0 z-10 w-px bg-accent/60"
                   style={{ left: todayPx }}
                 />
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const { placed, height } = layoutRow(row.tasks);
+                  return (
                   <div key={row.id} className="flex items-stretch border-b border-line last:border-0">
                     <div className="w-[220px] shrink-0 px-4 py-4">
                       <div className="text-[13px] font-semibold leading-tight">{row.label}</div>
@@ -199,11 +224,8 @@ export default async function TimelinePage({ searchParams }) {
                         {row.tasks.length} task{row.tasks.length === 1 ? "" : "s"}
                       </div>
                     </div>
-                    <div className="relative flex-1 py-3" style={{ width: gridW }}>
-                      {row.tasks.map((t, i) => {
-                        const g = barGeom(t);
-                        if (!g) return null;
-                        const hsl = divisionHsl(t.division);
+                    <div className="relative flex-1" style={{ width: gridW, minHeight: height }}>
+                      {placed.map(({ t, g, lane }) => {
                         const warn = t.overdue && t.status !== "completed";
                         return (
                           <Link
@@ -213,14 +235,14 @@ export default async function TimelinePage({ searchParams }) {
                             style={{
                               left: `${g.left}%`,
                               width: `${g.width}%`,
-                              top: 12 + (i % 3) * 30,
+                              top: ROW_PAD + lane * LANE_H,
                               background: warn
                                 ? "var(--warn-bg)"
-                                : `hsl(${hsl} / 0.16)`,
+                                : "color-mix(in srgb, var(--text) 8%, transparent)",
                               borderColor: warn
                                 ? "color-mix(in srgb, var(--warn) 50%, transparent)"
-                                : `hsl(${hsl} / 0.5)`,
-                              color: warn ? "var(--warn)" : `hsl(${hsl})`,
+                                : "color-mix(in srgb, var(--text) 40%, transparent)",
+                              color: warn ? "var(--warn)" : "var(--text)",
                             }}
                             className="absolute flex h-[24px] items-center gap-1.5 overflow-hidden rounded-[7px] border px-2 text-[11px] font-medium hover:brightness-110"
                           >
@@ -230,7 +252,8 @@ export default async function TimelinePage({ searchParams }) {
                       })}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

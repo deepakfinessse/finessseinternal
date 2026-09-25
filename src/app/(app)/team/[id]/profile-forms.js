@@ -25,18 +25,16 @@ export function ProfileEditForm({ person, canEdit }) {
           <Field label="Phone">
             <input name="phone" defaultValue={person.phone} className={inputClass} />
           </Field>
-          <Field label="Timezone" hint="e.g. Asia/Kolkata">
-            <input name="timezone" defaultValue={person.timezone} className={inputClass} />
+          <Field label="Date of birth">
+            <input
+              type="date"
+              name="dateOfBirth"
+              defaultValue={person.dateOfBirth}
+              max={new Date().toISOString().slice(0, 10)}
+              className={inputClass}
+            />
           </Field>
         </div>
-        <Field label="Skill tags" hint="Comma-separated">
-          <input
-            name="skills"
-            defaultValue={person.skills.join(", ")}
-            className={inputClass}
-            placeholder="react, project-management, qa"
-          />
-        </Field>
         {canEdit && <SubmitButton>Save profile</SubmitButton>}
       </fieldset>
     </ActionForm>

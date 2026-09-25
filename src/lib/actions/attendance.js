@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { collections } from "@/lib/db";
 import { getCurrentUser } from "@/lib/access";
 import { writeAudit } from "@/lib/audit";
+import { WORK_MODE_KEYS } from "@/lib/attendance-constants";
 
 const oid = (id) => new ObjectId(String(id));
 
@@ -20,7 +21,11 @@ async function openSession(userId, attendance) {
   return attendance.findOne({ userId: oid(userId), status: { $in: ["running", "paused"] } });
 }
 
-export async function clockIn() {
+/** `workMode` is "active" (in office) or "wfh" — asked for at every clock-in. */
+export async function clockIn(workMode) {
+  if (!WORK_MODE_KEYS.includes(workMode)) {
+    return { ok: false, error: "Choose Active or Work from home." };
+  }
   const ctx = await requireActiveUser();
   if (ctx.error) return { ok: false, error: ctx.error };
   const { me } = ctx;
@@ -32,6 +37,7 @@ export async function clockIn() {
   const now = new Date();
   await attendance.insertOne({
     userId: oid(me.id),
+    workMode,
     status: "running",
     segments: [{ start: now, end: null }],
     startedAt: now,
@@ -40,7 +46,7 @@ export async function clockIn() {
     createdAt: now,
     updatedAt: now,
   });
-  await writeAudit({ actorId: me.id, action: "attendance.clock_in", targetType: "attendance", targetId: me.id, meta: {} });
+  await writeAudit({ actorId: me.id, action: "attendance.clock_in", targetType: "attendance", targetId: me.id, meta: { workMode } });
   revalidatePath("/attendance");
   return { ok: true };
 }

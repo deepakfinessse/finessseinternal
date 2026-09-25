@@ -60,7 +60,7 @@ export default async function DashboardPage() {
                   <li key={t.id} className="border-b border-line py-2.5 last:border-0">
                     <Link href={`/tasks/${t.id}`} className="flex items-center justify-between gap-3">
                       <span className="flex min-w-0 items-center gap-2">
-                        <DivisionDot division={t.division} />
+                        <DivisionDot />
                         <span className="truncate text-[13px] font-medium">{t.title}</span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2.5 text-[12px] text-faint">

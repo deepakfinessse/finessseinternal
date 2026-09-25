@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/access";
 import { listAllSessions, summarizeByDay } from "@/lib/attendance";
+import { workModeLabel } from "@/lib/attendance-constants";
 
 function csvCell(v) {
   const s = String(v ?? "");
@@ -28,7 +29,7 @@ export async function GET(request) {
   });
   const rows = summarizeByDay(sessions);
 
-  const header = ["Name", "Email", "Date", "First in", "Last out", "Total hours", "Sessions"];
+  const header = ["Name", "Email", "Date", "Status", "First in", "Last out", "Total hours", "Sessions"];
   const lines = [header.join(",")];
   for (const r of rows) {
     lines.push(
@@ -36,6 +37,7 @@ export async function GET(request) {
         r.user.name || "",
         r.user.email || "",
         r.day,
+        r.workModes.length ? r.workModes.map((m) => workModeLabel(m)).join(" + ") : "",
         fmtDateTime(r.firstIn),
         r.open ? "In progress" : fmtDateTime(r.lastOut),
         (r.totalMs / 3600000).toFixed(2),

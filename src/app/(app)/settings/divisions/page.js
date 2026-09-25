@@ -47,7 +47,7 @@ export default async function DivisionsSettingsPage() {
               return (
                 <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <div className="flex items-center gap-2.5">
-                    <DivisionDot division={d.key} />
+                    <DivisionDot />
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">{d.label}</span>

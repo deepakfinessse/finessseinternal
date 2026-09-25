@@ -46,7 +46,7 @@ export const DEFAULT_ONBOARDING = {
   _id: "onboarding",
   steps: [
     { key: "account", title: "Sign in with your Workspace account", description: "Confirms SSO works for the new member.", auto: true },
-    { key: "profile", title: "Complete profile & skill tags", description: "Name, title, timezone and skills.", auto: false },
+    { key: "profile", title: "Complete your profile", description: "Name, title, phone and date of birth.", auto: false },
     { key: "security", title: "Review authorized devices", description: "Check the sessions list and revoke anything unexpected.", auto: false },
     { key: "welcome", title: "Read the welcome guide", description: "Team norms and where things live.", auto: false, url: "" },
   ],
