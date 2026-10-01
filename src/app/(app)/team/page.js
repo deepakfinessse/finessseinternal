@@ -13,11 +13,13 @@ export default async function TeamPage({ searchParams }) {
   const status = STATUS_TABS.includes(sp.status) ? sp.status : "all";
   const q = (sp.q || "").trim();
 
-  const [people, roles] = await Promise.all([
+  const [people, roles, everyone] = await Promise.all([
     listUsers({ status: status === "all" ? undefined : status, q: q || undefined }),
     listRoles(),
+    listUsers({}),
   ]);
   const roleName = (id) => roles.find((r) => r.id === id)?.name || "—";
+  const nameById = new Map(everyone.map((u) => [u.id, u.name || u.email]));
 
   return (
     <div className="flex flex-col gap-6">
@@ -71,6 +73,7 @@ export default async function TeamPage({ searchParams }) {
                 <tr className="border-b border-gray/20 text-left text-xs uppercase text-gray">
                   <th className="py-2 pr-3 font-semibold">Name</th>
                   <th className="py-2 pr-3 font-semibold">Roles</th>
+                  <th className="py-2 pr-3 font-semibold">Reports to</th>
                   <th className="py-2 pr-3 font-semibold">Version</th>
                   <th className="py-2 pr-3 font-semibold">Status</th>
                   <th className="py-2 pr-3 font-semibold">Joined</th>
@@ -89,6 +92,9 @@ export default async function TeamPage({ searchParams }) {
                       {p.roles.map((r) => r.name).join(", ") ||
                         p.roleIds.map(roleName).join(", ") ||
                         "—"}
+                    </td>
+                    <td className="py-2.5 pr-3 text-xs text-gray">
+                      {p.reportingManagerId ? nameById.get(p.reportingManagerId) || "—" : "—"}
                     </td>
                     <td className="py-2.5 pr-3 text-xs">{p.assignedVersion || "—"}</td>
                     <td className="py-2.5 pr-3">

@@ -129,6 +129,59 @@ export async function completeMyProfile(_prev, formData) {
   return { ok: true, redirect: complete ? "/dashboard" : "/welcome" };
 }
 
+/**
+ * Who someone reports to. Admin-controlled only (not self-service, unlike
+ * the rest of the profile) — set alongside roles/version/status, not in the
+ * free-for-self ProfileEditForm.
+ */
+export async function assignReportingManager(_prev, formData) {
+  const actor = await assertPermission("assignee:update");
+  const targetId = String(formData.get("userId") || "");
+  const managerId = String(formData.get("reportingManagerId") || "");
+
+  const { users } = await collections();
+  const target = await users.findOne({ _id: oid(targetId) });
+  if (!target) return { ok: false, error: "Assignee not found." };
+
+  let managerOid = null;
+  if (managerId) {
+    if (managerId === targetId) return { ok: false, error: "Someone can't report to themselves." };
+    const manager = await users.findOne({ _id: oid(managerId) });
+    if (!manager) return { ok: false, error: "Reporting manager not found." };
+
+    // Walk up the candidate's own chain of managers — if it ever reaches the
+    // target, the target is already an ancestor and this would close a loop.
+    let cursor = manager;
+    const seen = new Set();
+    while (cursor) {
+      if (String(cursor._id) === targetId) {
+        return { ok: false, error: "That would create a reporting loop." };
+      }
+      const cid = String(cursor._id);
+      if (seen.has(cid) || !cursor.reportingManagerId) break;
+      seen.add(cid);
+      cursor = await users.findOne({ _id: oid(cursor.reportingManagerId) });
+    }
+    managerOid = manager._id;
+  }
+
+  await users.updateOne(
+    { _id: target._id },
+    { $set: { reportingManagerId: managerOid, updatedAt: new Date() } },
+  );
+  await writeAudit({
+    actorId: actor.id,
+    action: "profile.reporting_manager",
+    targetType: "user",
+    targetId,
+    meta: { reportingManagerId: managerOid ? String(managerOid) : null },
+  });
+  revalidatePath(`/team/${targetId}`);
+  revalidatePath("/team");
+  revalidatePath("/profile");
+  return { ok: true };
+}
+
 const STATUSES = ["active", "suspended", "deactivated"];
 
 export async function setUserStatus(_prev, formData) {
