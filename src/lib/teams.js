@@ -46,6 +46,13 @@ export async function getTeam(id) {
   return t ? serialize(t) : null;
 }
 
+/** The ids of every team a given user is a member of. */
+export async function teamIdsForUser(userId) {
+  const { teams } = await collections();
+  const docs = await teams.find({ memberIds: oid(userId) }, { projection: { _id: 1 } }).toArray();
+  return docs.map((d) => String(d._id));
+}
+
 export async function teamIds() {
   const { teams } = await collections();
   const docs = await teams.find({}, { projection: { _id: 1 } }).toArray();

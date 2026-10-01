@@ -69,14 +69,31 @@ function EstimateFields({ minutes, required = false, hint }) {
 
 /* ------------------------------------------------------------------ create */
 
-export function CreateTaskForm({ projects, people, allTeams = [], defaultProjectId, canSchedule, canAssign }) {
+export function CreateTaskForm({
+  projects,
+  people,
+  allTeams = [],
+  restrictToTeamIds = null,
+  defaultProjectId,
+  canSchedule,
+  canAssign,
+}) {
   const [projectId, setProjectId] = useState(defaultProjectId || projects[0]?.id || "");
   const project = projects.find((p) => p.id === projectId);
-  const teams = allTeams.filter((t) => (project?.teamIds || []).includes(t.id));
-  // Restrict to the project's assigned team(s) — unless it has none yet, in
-  // which case fall back to everyone so untriaged projects aren't a dead end.
-  const projectPeople = project?.memberIds?.length
-    ? people.filter((u) => project.memberIds.includes(u.id))
+  const teams = allTeams.filter(
+    (t) =>
+      (project?.teamIds || []).includes(t.id) &&
+      (!restrictToTeamIds || restrictToTeamIds.includes(t.id)),
+  );
+
+  const [teamId, setTeamId] = useState(teams[0]?.id || "");
+  // Keep the pick valid as the project (and so the team list) changes.
+  const effectiveTeamId = teams.some((t) => t.id === teamId) ? teamId : teams[0]?.id || "";
+  const selectedTeam = teams.find((t) => t.id === effectiveTeamId);
+  // A task can only go to its own team — unless that team has no roster yet,
+  // in which case fall back to everyone so an untriaged team isn't a dead end.
+  const teamPeople = selectedTeam?.memberIds?.length
+    ? people.filter((u) => selectedTeam.memberIds.includes(u.id))
     : people;
 
   return (
@@ -97,9 +114,15 @@ export function CreateTaskForm({ projects, people, allTeams = [], defaultProject
             ))}
           </select>
         </Field>
-        <Field label="Team" hint="Limited to the project's teams">
-          <select name="teamId" className={inputClass} required>
-            {teams.length === 0 && <option value="">— project has no team —</option>}
+        <Field label="Team" hint={restrictToTeamIds ? "Limited to your own team" : "Limited to the project's teams"}>
+          <select
+            name="teamId"
+            value={effectiveTeamId}
+            onChange={(e) => setTeamId(e.target.value)}
+            className={inputClass}
+            required
+          >
+            {teams.length === 0 && <option value="">— no eligible team on this project —</option>}
             {teams.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
@@ -139,11 +162,11 @@ export function CreateTaskForm({ projects, people, allTeams = [], defaultProject
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
           label="Assignee (executor)"
-          hint={project?.memberIds?.length ? "Limited to people assigned to this project" : ""}
+          hint={selectedTeam?.memberIds?.length ? "Limited to people on this task's team" : ""}
         >
           <select name="assigneeId" className={inputClass} disabled={!canAssign} defaultValue="">
             <option value="">— unassigned —</option>
-            {projectPeople.map((u) => (
+            {teamPeople.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name || u.email}
               </option>
@@ -152,7 +175,7 @@ export function CreateTaskForm({ projects, people, allTeams = [], defaultProject
         </Field>
         <Field label="Collaborators (contributors)" hint="Ctrl/Cmd-click for multiple">
           <select name="collaboratorIds" multiple className={`${inputClass} h-24`}>
-            {projectPeople.map((u) => (
+            {teamPeople.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name || u.email}
               </option>

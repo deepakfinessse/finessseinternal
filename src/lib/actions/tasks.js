@@ -22,13 +22,24 @@ import {
 const oid = (id) => new ObjectId(String(id));
 const bump = (paths) => paths.forEach((p) => revalidatePath(p));
 
-/** Union of member ids across a project's teams — who can be assigned work on it. */
-async function projectMemberIds(project) {
-  const teamIds = project.teamIds || [];
-  if (!teamIds.length) return [];
+/** A task's own team roster — who it can actually be assigned/collaborated to. */
+async function teamMemberIds(teamId) {
+  if (!teamId) return [];
   const { teams } = await collections();
-  const teamDocs = await teams.find({ _id: { $in: teamIds } }).toArray();
-  return [...new Set(teamDocs.flatMap((t) => (t.memberIds || []).map(String)))];
+  const team = await teams.findOne({ _id: oid(teamId) });
+  return (team?.memberIds || []).map(String);
+}
+
+/**
+ * `null` for holders of `task:assign:all` (admin/super-admin) — unrestricted.
+ * Otherwise the ids of every team the actor themselves belongs to: a manager
+ * without the flag can only create/assign work for their own team(s).
+ */
+async function actorOwnTeamIds(me) {
+  if (me.can("task:assign:all") || me.can("*")) return null;
+  const { teams } = await collections();
+  const docs = await teams.find({ memberIds: oid(me.id) }, { projection: { _id: 1 } }).toArray();
+  return docs.map((d) => String(d._id));
 }
 
 // Tasks written before the blocker-history change carry a single `blocker`
@@ -116,17 +127,21 @@ export async function createTask(_prev, formData) {
   if (!(project.teamIds || []).some((t) => String(t) === d.teamId)) {
     return { ok: false, error: "That team isn't assigned to this project." };
   }
+  const ownTeams = await actorOwnTeamIds(actor);
+  if (ownTeams && !ownTeams.includes(d.teamId)) {
+    return { ok: false, error: "You can only create tasks for your own team." };
+  }
   if (d.startDate && d.endDate && new Date(d.startDate) > new Date(d.endDate)) {
     return { ok: false, error: "Start date must be on or before the end date." };
   }
-  const allowedMembers = await projectMemberIds(project);
+  const allowedMembers = await teamMemberIds(d.teamId);
   if (allowedMembers.length) {
     const allowed = new Set(allowedMembers);
     if (d.assigneeId && !allowed.has(d.assigneeId)) {
-      return { ok: false, error: "Assignee must be a member of this project's team." };
+      return { ok: false, error: "Assignee must be a member of this task's team." };
     }
     if (d.collaboratorIds.some((c) => !allowed.has(c))) {
-      return { ok: false, error: "Collaborators must be members of this project's team." };
+      return { ok: false, error: "Collaborators must be members of this task's team." };
     }
   }
 
@@ -185,7 +200,7 @@ export async function createTask(_prev, formData) {
 export async function updateTask(_prev, formData) {
   const actor = await assertPermission("task:update");
   const id = String(formData.get("id") || "");
-  const { tasks, projects } = await collections();
+  const { tasks } = await collections();
   const task = await tasks.findOne({ _id: oid(id) });
   if (!task) return { ok: false, error: "Task not found." };
 
@@ -205,12 +220,15 @@ export async function updateTask(_prev, formData) {
   let newCollaborators = null;
   if (formData.has("collaboratorIds")) {
     const ids = formData.getAll("collaboratorIds").map(String).filter(Boolean);
-    const project = await projects.findOne({ _id: task.projectId });
-    const allowedMembers = project ? await projectMemberIds(project) : [];
+    const ownTeams = await actorOwnTeamIds(actor);
+    if (ownTeams && task.teamId && !ownTeams.includes(String(task.teamId))) {
+      return { ok: false, error: "You can only change collaborators for your own team's tasks." };
+    }
+    const allowedMembers = await teamMemberIds(task.teamId);
     if (allowedMembers.length) {
       const allowed = new Set(allowedMembers);
       if (ids.some((c) => !allowed.has(c))) {
-        return { ok: false, error: "Collaborators must be members of this project's team." };
+        return { ok: false, error: "Collaborators must be members of this task's team." };
       }
     }
     newCollaborators = ids;
@@ -283,17 +301,20 @@ export async function assignTask(_prev, formData) {
   const actor = await assertPermission("task:assign");
   const id = String(formData.get("id") || "");
   const assigneeId = String(formData.get("assigneeId") || "");
-  const { tasks, users, projects } = await collections();
+  const { tasks, users } = await collections();
   const task = await tasks.findOne({ _id: oid(id) });
   if (!task) return { ok: false, error: "Task not found." };
+  const ownTeams = await actorOwnTeamIds(actor);
+  if (ownTeams && task.teamId && !ownTeams.includes(String(task.teamId))) {
+    return { ok: false, error: "You can only assign tasks for your own team." };
+  }
   if (assigneeId) {
     const u = await users.findOne({ _id: oid(assigneeId) });
     if (!u) return { ok: false, error: "User not found." };
     if (u.status !== "active") return { ok: false, error: "That user is not active." };
-    const project = await projects.findOne({ _id: task.projectId });
-    const allowedMembers = project ? await projectMemberIds(project) : [];
+    const allowedMembers = await teamMemberIds(task.teamId);
     if (allowedMembers.length && !allowedMembers.includes(assigneeId)) {
-      return { ok: false, error: "Assignee must be a member of this project's team." };
+      return { ok: false, error: "Assignee must be a member of this task's team." };
     }
   }
   await tasks.updateOne(

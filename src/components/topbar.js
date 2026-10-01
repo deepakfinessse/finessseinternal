@@ -14,7 +14,7 @@ const TITLES = [
   [/^\/dashboard/, "Pulse"],
   [/^\/tasks\/new/, "New task"],
   [/^\/tasks\/[^/]+$/, "Task"],
-  [/^\/tasks/, "Board"],
+  [/^\/tasks/, "Task Board"],
   [/^\/timeline/, "Timeline"],
   [/^\/heatmap/, "Heatmap"],
   [/^\/leaderboard/, "Leaderboard"],

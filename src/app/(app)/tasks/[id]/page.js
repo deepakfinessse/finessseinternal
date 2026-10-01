@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/access";
-import { getTask, getProject } from "@/lib/pm-data";
+import { getTask } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
+import { getTeam, teamIdsForUser } from "@/lib/teams";
 import { listAudit } from "@/lib/audit";
 import { STATUS_LABEL, fmtDuration, taskXp } from "@/lib/pm-constants";
 import { Card, Badge, EmptyState, fmtDate, fmtDateTime, relTime } from "@/components/ui";
@@ -59,6 +60,7 @@ export default async function TaskDetailPage({ params }) {
   const canEdit = user.can("task:update");
   const canSchedule = user.can("task:schedule");
   const canAssign = user.can("task:assign");
+  const canAssignAll = user.can("task:assign:all") || user.can("*");
   const canApprove = user.can("task:approve");
   const canDelete = user.can("task:delete");
   const canSeePeople = canEdit || canAssign;
@@ -67,18 +69,22 @@ export default async function TaskDetailPage({ params }) {
   // Notes & attachments: admins, plus the person the task is actually for.
   const canContribute = canEdit || isOwner;
 
-  const [allPeople, project, activity] = await Promise.all([
+  const [allPeople, taskTeam, activity, myTeamIds] = await Promise.all([
     canSeePeople ? listUsers({ status: "active" }) : [],
-    canSeePeople ? getProject(user, task.projectId) : null,
+    canSeePeople && task.teamId ? getTeam(task.teamId) : null,
     user.can("audit:read")
       ? listAudit({ targetType: "task", targetId: id, limit: 40 })
       : [],
+    canAssign && !canAssignAll ? teamIdsForUser(user.id) : null,
   ]);
-  // Restrict to the project's assigned team — unless it has none yet, in
-  // which case fall back to everyone so untriaged projects aren't a dead end.
-  const people = project?.memberIds?.length
-    ? allPeople.filter((u) => project.memberIds.includes(u.id))
+  // Restrict to the task's own team — unless it has no roster yet, in which
+  // case fall back to everyone so an untriaged team isn't a dead end.
+  const people = taskTeam?.memberIds?.length
+    ? allPeople.filter((u) => taskTeam.memberIds.includes(u.id))
     : allPeople;
+  // Without task:assign:all (e.g. Manager), reassigning is limited to tasks
+  // on your own team.
+  const canAssignThis = canAssign && (canAssignAll || (myTeamIds && myTeamIds.includes(task.teamId)));
 
   return (
     <div className="flex flex-col gap-6">
@@ -264,10 +270,15 @@ export default async function TaskDetailPage({ params }) {
                   : "—"}
               </dd>
             </dl>
-            {canAssign && (
+            {canAssignThis && (
               <div className="mt-3 border-t border-gray/15 pt-3">
                 <AssignForm task={task} people={people} />
               </div>
+            )}
+            {canAssign && !canAssignThis && (
+              <p className="mt-3 border-t border-gray/15 pt-3 text-xs text-gray">
+                Only your own team&apos;s tasks can be reassigned.
+              </p>
             )}
           </Card>
 

@@ -39,7 +39,7 @@ export default async function BoardPage({ searchParams }) {
     <div className="flex flex-col gap-4">
       <PageHeader
         eyebrow="Delivery"
-        title="Board"
+        title="Task Board"
         description="Drag a card between columns to move it through the lifecycle."
         actions={
           <div className="flex items-center gap-3 text-[12px] text-dim">
