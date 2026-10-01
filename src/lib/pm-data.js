@@ -225,10 +225,19 @@ export async function getProject(user, id) {
 
 /* --------------------------------------------------------------------- tasks */
 
-/** Mongo filter that limits tasks to those a user may see. */
-export function taskScopeFilter(user) {
+/**
+ * Mongo filter that limits tasks to those a user may see: assigned to them,
+ * they're collaborating on, or on a team they're a member of (so a manager
+ * sees their whole team's board, not just their own tasks). `{}` for holders
+ * of `task:read:all`.
+ */
+export async function taskScopeFilter(user) {
   if (user.can("task:read:all") || user.can("*")) return {};
-  return { $or: [{ assigneeId: oid(user.id) }, { collaboratorIds: oid(user.id) }] };
+  const { teams } = await collections();
+  const myTeamIds = await teams.distinct("_id", { memberIds: oid(user.id) });
+  const or = [{ assigneeId: oid(user.id) }, { collaboratorIds: oid(user.id) }];
+  if (myTeamIds.length) or.push({ teamId: { $in: myTeamIds } });
+  return { $or: or };
 }
 
 export function serializeTask(t, { project, users, tmap = new Map() } = {}) {
@@ -344,7 +353,7 @@ export async function listTasks(user, filters = {}) {
   const teamList = oidList(team, teams);
   const asgList = oidList(assigneeId, assigneeIds);
 
-  const query = { ...taskScopeFilter(user) };
+  const query = { ...(await taskScopeFilter(user)) };
   if (projList.length) query.projectId = { $in: projList };
   if (teamList.length) query.teamId = { $in: teamList };
   if (asgList.length) query.assigneeId = { $in: asgList };
@@ -382,7 +391,7 @@ export async function getTask(user, id) {
   const { tasks, projects } = await collections();
   let t;
   try {
-    t = await tasks.findOne({ _id: oid(id), ...taskScopeFilter(user) });
+    t = await tasks.findOne({ _id: oid(id), ...(await taskScopeFilter(user)) });
   } catch {
     return null;
   }
@@ -397,7 +406,7 @@ export async function getTask(user, id) {
 
 export async function taskStats(user) {
   const { tasks } = await collections();
-  const scope = taskScopeFilter(user);
+  const scope = await taskScopeFilter(user);
   const rows = await tasks
     .aggregate([{ $match: scope }, { $group: { _id: "$status", n: { $sum: 1 } } }])
     .toArray();
