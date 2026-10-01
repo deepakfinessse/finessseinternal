@@ -90,7 +90,7 @@ export function DeliveryFilters({
   value,
   projects = [],
   people = [],
-  divisions = [],
+  teams = [],
   canSeeAll = false,
   showSearch = false,
   searchPlaceholder = "Search…",
@@ -103,7 +103,7 @@ export function DeliveryFilters({
     value.project.length +
     value.assignee.length +
     value.priority.length +
-    value.division.length +
+    value.team.length +
     (value.from || value.to ? 1 : 0);
   const [open, setOpen] = useState(advCount > 0);
 
@@ -127,7 +127,7 @@ export function DeliveryFilters({
   const clearAll = () =>
     persist({
       mine: false, overdue: false, blocked: false,
-      project: [], assignee: [], priority: [], division: [],
+      project: [], assignee: [], priority: [], team: [],
       from: "", to: "", q: "",
     });
   const clearDates = () => persist({ ...value, from: "", to: "" });
@@ -137,14 +137,14 @@ export function DeliveryFilters({
     const u = people.find((p) => p.id === id);
     return u ? (u.name || u.email || "Assignee") : "Assignee";
   };
-  const divName = (k) => divisions.find((d) => d.key === k)?.label || k;
+  const teamName = (id) => teams.find((t) => t.id === id)?.name || id;
   const prioName = (k) => PRIORITY_OPTS.find((p) => p.key === k)?.label || k;
 
   const chips = [
     ...value.project.map((v) => ({ k: "project", v, label: projName(v) })),
     ...value.assignee.map((v) => ({ k: "assignee", v, label: personName(v) })),
     ...value.priority.map((v) => ({ k: "priority", v, label: prioName(v) })),
-    ...value.division.map((v) => ({ k: "division", v, label: divName(v) })),
+    ...value.team.map((v) => ({ k: "team", v, label: teamName(v) })),
   ];
   const dateChipLabel =
     value.from && value.to
@@ -237,11 +237,11 @@ export function DeliveryFilters({
             ))}
           </Section>
 
-          <Section label="Division">
-            {divisions.length === 0 && <span className="text-[12px] text-faint">No divisions</span>}
-            {divisions.map((d) => (
-              <Pill key={d.key} active={value.division.includes(d.key)} onClick={() => toggleIn("division", d.key)}>
-                {d.label}
+          <Section label="Team">
+            {teams.length === 0 && <span className="text-[12px] text-faint">No teams</span>}
+            {teams.map((t) => (
+              <Pill key={t.id} active={value.team.includes(t.id)} onClick={() => toggleIn("team", t.id)}>
+                {t.name}
               </Pill>
             ))}
           </Section>

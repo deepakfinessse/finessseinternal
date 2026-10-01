@@ -22,6 +22,15 @@ import {
 const oid = (id) => new ObjectId(String(id));
 const bump = (paths) => paths.forEach((p) => revalidatePath(p));
 
+/** Union of member ids across a project's teams — who can be assigned work on it. */
+async function projectMemberIds(project) {
+  const teamIds = project.teamIds || [];
+  if (!teamIds.length) return [];
+  const { teams } = await collections();
+  const teamDocs = await teams.find({ _id: { $in: teamIds } }).toArray();
+  return [...new Set(teamDocs.flatMap((t) => (t.memberIds || []).map(String)))];
+}
+
 // Tasks written before the blocker-history change carry a single `blocker`
 // object; fold it in as the first entry so nothing is lost.
 const blockerHistory = (task) => task.blockers || (task.blocker ? [task.blocker] : []);
@@ -71,7 +80,7 @@ const TaskInput = z.object({
   projectId: z.string().min(1),
   title: z.string().min(2).max(200),
   description: z.string().max(5000).optional().default(""),
-  division: z.string().min(1),
+  teamId: z.string().min(1),
   priority: z.enum(PRIORITY_KEYS).default("medium"),
   assigneeId: z.string().optional().default(""),
   collaboratorIds: z.array(z.string()).optional().default([]),
@@ -86,7 +95,7 @@ export async function createTask(_prev, formData) {
     projectId: formData.get("projectId"),
     title: formData.get("title"),
     description: formData.get("description") || "",
-    division: formData.get("division"),
+    teamId: formData.get("teamId"),
     priority: formData.get("priority") || "medium",
     assigneeId: formData.get("assigneeId") || "",
     collaboratorIds: formData.getAll("collaboratorIds").map(String).filter(Boolean),
@@ -104,19 +113,20 @@ export async function createTask(_prev, formData) {
   const { tasks, projects } = await collections();
   const project = await projects.findOne({ _id: oid(d.projectId) });
   if (!project) return { ok: false, error: "Project not found." };
-  if (!(project.divisions || []).includes(d.division)) {
-    return { ok: false, error: "That division isn't assigned to this project." };
+  if (!(project.teamIds || []).some((t) => String(t) === d.teamId)) {
+    return { ok: false, error: "That team isn't assigned to this project." };
   }
   if (d.startDate && d.endDate && new Date(d.startDate) > new Date(d.endDate)) {
     return { ok: false, error: "Start date must be on or before the end date." };
   }
-  if (project.memberIds?.length) {
-    const allowed = new Set(project.memberIds.map(String));
+  const allowedMembers = await projectMemberIds(project);
+  if (allowedMembers.length) {
+    const allowed = new Set(allowedMembers);
     if (d.assigneeId && !allowed.has(d.assigneeId)) {
-      return { ok: false, error: "Assignee must be a member of this project." };
+      return { ok: false, error: "Assignee must be a member of this project's team." };
     }
     if (d.collaboratorIds.some((c) => !allowed.has(c))) {
-      return { ok: false, error: "Collaborators must be members of this project." };
+      return { ok: false, error: "Collaborators must be members of this project's team." };
     }
   }
 
@@ -125,7 +135,7 @@ export async function createTask(_prev, formData) {
   const res = await tasks.insertOne({
     projectId: project._id,
     taskNumber,
-    division: d.division,
+    teamId: oid(d.teamId),
     title: d.title,
     description: d.description,
     priority: d.priority,
@@ -154,7 +164,7 @@ export async function createTask(_prev, formData) {
     action: "task.create",
     targetType: "task",
     targetId: res.insertedId,
-    meta: { title: d.title, taskNumber, project: project.name, division: d.division, estimateMinutes },
+    meta: { title: d.title, taskNumber, project: project.name, teamId: d.teamId, estimateMinutes },
   });
   if (d.assigneeId) {
     await notifyUser({
@@ -196,10 +206,11 @@ export async function updateTask(_prev, formData) {
   if (formData.has("collaboratorIds")) {
     const ids = formData.getAll("collaboratorIds").map(String).filter(Boolean);
     const project = await projects.findOne({ _id: task.projectId });
-    if (project?.memberIds?.length) {
-      const allowed = new Set(project.memberIds.map(String));
+    const allowedMembers = project ? await projectMemberIds(project) : [];
+    if (allowedMembers.length) {
+      const allowed = new Set(allowedMembers);
       if (ids.some((c) => !allowed.has(c))) {
-        return { ok: false, error: "Collaborators must be members of this project." };
+        return { ok: false, error: "Collaborators must be members of this project's team." };
       }
     }
     newCollaborators = ids;
@@ -280,8 +291,9 @@ export async function assignTask(_prev, formData) {
     if (!u) return { ok: false, error: "User not found." };
     if (u.status !== "active") return { ok: false, error: "That user is not active." };
     const project = await projects.findOne({ _id: task.projectId });
-    if (project?.memberIds?.length && !project.memberIds.some((m) => String(m) === assigneeId)) {
-      return { ok: false, error: "Assignee must be a member of this project." };
+    const allowedMembers = project ? await projectMemberIds(project) : [];
+    if (allowedMembers.length && !allowedMembers.includes(assigneeId)) {
+      return { ok: false, error: "Assignee must be a member of this project's team." };
     }
   }
   await tasks.updateOne(

@@ -6,7 +6,7 @@ import { TASK_STATUSES, STATUS_LABEL } from "@/lib/pm-constants";
 import { moveTask } from "@/lib/actions/tasks";
 import { AvatarStack, EmptyState } from "@/components/ui";
 import {
-  DivisionLabel,
+  TeamLabel,
   StatusDot,
   BlockerChip,
   PriorityChip,
@@ -62,7 +62,7 @@ function TaskCard({ task, draggable, pending, dragging, onOpen, onDragStart, onD
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <DivisionLabel division={task.division} label={task.divisionLabel} />
+        <TeamLabel label={task.teamName} />
         <span className="mono text-[10px] tracking-[0.06em] text-faint">{taskCode(task)}</span>
       </div>
 

@@ -69,11 +69,11 @@ function EstimateFields({ minutes, required = false, hint }) {
 
 /* ------------------------------------------------------------------ create */
 
-export function CreateTaskForm({ projects, people, allDivisions = [], defaultProjectId, canSchedule, canAssign }) {
+export function CreateTaskForm({ projects, people, allTeams = [], defaultProjectId, canSchedule, canAssign }) {
   const [projectId, setProjectId] = useState(defaultProjectId || projects[0]?.id || "");
   const project = projects.find((p) => p.id === projectId);
-  const divisions = allDivisions.filter((d) => (project?.divisions || []).includes(d.key));
-  // Restrict to the project's assigned team — unless it has none yet, in
+  const teams = allTeams.filter((t) => (project?.teamIds || []).includes(t.id));
+  // Restrict to the project's assigned team(s) — unless it has none yet, in
   // which case fall back to everyone so untriaged projects aren't a dead end.
   const projectPeople = project?.memberIds?.length
     ? people.filter((u) => project.memberIds.includes(u.id))
@@ -97,12 +97,12 @@ export function CreateTaskForm({ projects, people, allDivisions = [], defaultPro
             ))}
           </select>
         </Field>
-        <Field label="Division" hint="Limited to the project's divisions">
-          <select name="division" className={inputClass} required>
-            {divisions.length === 0 && <option value="">— project has no divisions —</option>}
-            {divisions.map((d) => (
-              <option key={d.key} value={d.key}>
-                {d.label}
+        <Field label="Team" hint="Limited to the project's teams">
+          <select name="teamId" className={inputClass} required>
+            {teams.length === 0 && <option value="">— project has no team —</option>}
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
               </option>
             ))}
           </select>

@@ -1,4 +1,4 @@
-// Agency divisions are dynamic (super-admin managed) — see src/lib/divisions.js.
+// Agency teams are dynamic (super-admin managed) — see src/lib/teams.js.
 // The default seed for a fresh database lives in src/lib/db.js.
 
 export const PROJECT_STATUSES = ["onboarding", "active", "paused", "completed", "archived"];

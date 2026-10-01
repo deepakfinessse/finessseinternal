@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/access";
 import { listTasks, listProjectOptions } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
-import { divisionLabelMap, listDivisions } from "@/lib/divisions";
+import { teamsMap, listTeams } from "@/lib/teams";
 import { nowMs, STATUS_LABEL } from "@/lib/pm-constants";
 import { STATUS_COLOR, OVERDUE_COLOR } from "@/components/pm-ui";
 import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-filters";
@@ -18,7 +18,7 @@ const RANGES = [30, 60, 90];
 const GROUPINGS = [
   { key: "person", label: "By person" },
   { key: "project", label: "By project" },
-  { key: "division", label: "By division" },
+  { key: "team", label: "By team" },
 ];
 const DAY = 86400000;
 
@@ -66,12 +66,12 @@ export default async function TimelinePage({ searchParams }) {
     cookieValue: cookieStore.get(FILTER_COOKIE)?.value,
   });
 
-  const [allTasks, projects, people, divisions, dmap] = await Promise.all([
+  const [allTasks, projects, people, teams, tmap] = await Promise.all([
     listTasks(user, filterListArgs(filters, user.id)),
     user.can("project:read") ? listProjectOptions({ user }) : [],
     canSeeAll ? listUsers({ status: "active" }) : [],
-    listDivisions(),
-    divisionLabelMap(),
+    listTeams(),
+    teamsMap(),
   ]);
   const tasks = allTasks.filter((t) => t.endDate || t.startDate);
 
@@ -87,7 +87,7 @@ export default async function TimelinePage({ searchParams }) {
   const keyFns = {
     person: (t) => [t.assignee?.id || "_", t.assignee?.name || "Unassigned"],
     project: (t) => [t.project?.id || "_", t.project?.name || "No project"],
-    division: (t) => [t.division || "_", dmap[t.division] || t.division || "—"],
+    team: (t) => [t.teamId || "_", tmap.get(t.teamId)?.name || t.teamName || "—"],
   };
   for (const t of tasks) {
     const [id, label] = keyFns[by](t);
@@ -154,7 +154,7 @@ export default async function TimelinePage({ searchParams }) {
         value={filters}
         projects={projects}
         people={people.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
-        divisions={divisions}
+        teams={teams}
         canSeeAll={canSeeAll}
       />
 

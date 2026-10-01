@@ -59,7 +59,7 @@ export default async function AppLayout({ children }) {
         // can("analytics:read") && { href: "/reports", label: "Reports", icon: "reports" },
         can("analytics:read") && { href: "/analytics", label: "Intelligence", icon: "intelligence" },
         can("role:read") && { href: "/settings/roles", label: "Roles & Access", icon: "tools" },
-        can("division:manage") && { href: "/settings/divisions", label: "Divisions", icon: "tools" },
+        can("team:manage") && { href: "/settings/teams", label: "Teams", icon: "people" },
         // can("version:manage") && { href: "/settings/versions", label: "Releases", icon: "reports" },
         can("onboarding:manage") && { href: "/settings/onboarding", label: "Onboarding steps", icon: "campaigns" },
         can("audit:read") && { href: "/audit", label: "Audit log", icon: "reports" },

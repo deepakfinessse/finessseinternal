@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/access";
 import { listTasks, statusHeatmap, listProjectOptions } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
-import { listDivisions } from "@/lib/divisions";
+import { listTeams } from "@/lib/teams";
 import { TASK_STATUSES, STATUS_LABEL, nowMs } from "@/lib/pm-constants";
 import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-filters";
 import { PageHeader, EmptyState, Avatar } from "@/components/ui";
@@ -39,12 +39,12 @@ export default async function HeatmapPage({ searchParams }) {
     cookieValue: cookieStore.get(FILTER_COOKIE)?.value,
   });
 
-  const [tasks, people, projects, matrix, divisions] = await Promise.all([
+  const [tasks, people, projects, matrix, teams] = await Promise.all([
     listTasks(user, filterListArgs(filters, user.id)),
     canSeeAll ? listUsers({ status: "active" }) : [],
     user.can("project:read") ? listProjectOptions({ user }) : [],
     view === "matrix" ? statusHeatmap() : null,
-    listDivisions(),
+    listTeams(),
   ]);
 
   // people to show as rows — those with tasks, fall back to active users
@@ -100,7 +100,7 @@ export default async function HeatmapPage({ searchParams }) {
   const loadMax = Math.max(1, ...rows.flatMap((r) => Array.from({ length: WEEKS }, (_, wi) => loadFor(r.tasks, wi))));
 
   const matrixMax = matrix
-    ? Math.max(1, ...divisions.flatMap((d) => TASK_STATUSES.map((s) => matrix[d.key]?.[s] || 0)))
+    ? Math.max(1, ...teams.flatMap((t) => TASK_STATUSES.map((s) => matrix[t.id]?.[s] || 0)))
     : 1;
 
   return (
@@ -111,7 +111,7 @@ export default async function HeatmapPage({ searchParams }) {
         value={filters}
         projects={projects}
         people={people.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
-        divisions={divisions}
+        teams={teams}
         canSeeAll={canSeeAll}
       />
 
@@ -136,18 +136,18 @@ export default async function HeatmapPage({ searchParams }) {
           <table className="w-full border-separate border-spacing-1 text-[12px]">
             <thead>
               <tr>
-                <th className="text-left font-medium text-faint">Division</th>
+                <th className="text-left font-medium text-faint">Team</th>
                 {TASK_STATUSES.map((s) => (
                   <th key={s} className="px-2 font-medium text-faint">{STATUS_LABEL[s]}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {divisions.map((d) => (
-                <tr key={d.key}>
-                  <td className="whitespace-nowrap pr-3 text-dim">{d.label}</td>
+              {teams.map((t) => (
+                <tr key={t.id}>
+                  <td className="whitespace-nowrap pr-3 text-dim">{t.name}</td>
                   {TASK_STATUSES.map((s) => {
-                    const n = matrix[d.key]?.[s] || 0;
+                    const n = matrix[t.id]?.[s] || 0;
                     return (
                       <td
                         key={s}

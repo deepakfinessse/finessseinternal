@@ -68,7 +68,7 @@ export function Badge({ children, tone = "neutral", className = "" }) {
   );
 }
 
-/** Uppercase mono chip — task codes, division labels, status flags. */
+/** Uppercase mono chip — task codes, team labels, status flags. */
 export function Chip({ children, tone = "neutral", className = "" }) {
   const t = {
     neutral: "border-line text-faint",

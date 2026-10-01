@@ -2,11 +2,11 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { requirePermission } from "@/lib/access";
 import { listProjects, listTasks, listProjectOptions } from "@/lib/pm-data";
-import { listUsers } from "@/lib/data";
-import { listDivisions } from "@/lib/divisions";
+import { listUsers, listEligibleOwners } from "@/lib/data";
+import { listTeams } from "@/lib/teams";
 import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-filters";
 import { PageHeader, Card, EmptyState, AvatarStack, fmtDate } from "@/components/ui";
-import { DivisionDot, RingStat } from "@/components/pm-ui";
+import { TeamDot, RingStat } from "@/components/pm-ui";
 import { Icon } from "@/components/icons";
 import { DeliveryFilters } from "@/components/delivery-filters";
 import { ProjectForm } from "./project-forms";
@@ -51,16 +51,16 @@ function ProjectCard({ p }) {
       )}
 
       <div className="flex flex-wrap gap-1.5">
-        {p.divisions.length === 0 ? (
-          <span className="text-[11px] text-faint">No divisions assigned</span>
+        {p.teamIds.length === 0 ? (
+          <span className="text-[11px] text-faint">No team assigned</span>
         ) : (
-          p.divisions.map((d, i) => (
+          p.teamIds.map((id, i) => (
             <span
-              key={d}
+              key={id}
               className="mono inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[9.5px] uppercase tracking-[0.09em] text-dim"
             >
-              <DivisionDot size={6} />
-              {p.divisionLabels[i] || d}
+              <TeamDot size={6} />
+              {p.teamNames[i] || id}
             </span>
           ))
         )}
@@ -124,7 +124,7 @@ export default async function ProjectsPage({ searchParams }) {
   });
 
   // Task-oriented dimensions narrow the list to projects that *contain* a
-  // matching task; division / project / q are project-level.
+  // matching task; team / project / q are project-level.
   const taskDims =
     filters.assignee.length ||
     filters.priority.length ||
@@ -134,14 +134,15 @@ export default async function ProjectsPage({ searchParams }) {
     filters.from ||
     filters.to;
 
-  const [allProjects, matchTasks, projectOpts, people, divisions] = await Promise.all([
-    listProjects({ user, divisions: filters.division, q: filters.q || undefined }),
+  const [allProjects, matchTasks, projectOpts, people, teams, owners] = await Promise.all([
+    listProjects({ user, teams: filters.team, q: filters.q || undefined }),
     taskDims
-      ? listTasks(user, filterListArgs({ ...filters, division: [], project: [] }, user.id))
+      ? listTasks(user, filterListArgs({ ...filters, team: [], project: [] }, user.id))
       : null,
     user.can("project:read") ? listProjectOptions({ user }) : [],
     user.can("assignee:read") ? listUsers({ status: "active" }) : [],
-    listDivisions(),
+    listTeams(),
+    user.can("project:create") ? listEligibleOwners() : [],
   ]);
 
   let projects = allProjects;
@@ -158,7 +159,7 @@ export default async function ProjectsPage({ searchParams }) {
       <PageHeader
         eyebrow="Delivery"
         title="Projects"
-        description="Onboarding routes a project into divisions. Divisions decide who can be assigned."
+        description="Onboarding routes a project into teams. Teams decide who can be assigned."
         actions={
           user.can("project:create") ? (
             <Link
@@ -172,8 +173,8 @@ export default async function ProjectsPage({ searchParams }) {
       />
 
       {showForm && (
-        <Card title="Onboard a project" description="Project & division setup.">
-          <ProjectForm divisions={divisions} people={people} />
+        <Card title="Onboard a project" description="Project & team setup.">
+          <ProjectForm teams={teams} owners={owners} />
         </Card>
       )}
 
@@ -181,7 +182,7 @@ export default async function ProjectsPage({ searchParams }) {
         value={filters}
         projects={projectOpts}
         people={people.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
-        divisions={divisions}
+        teams={teams}
         canSeeAll={user.can("assignee:read")}
         showSearch
         searchPlaceholder="Search projects…"

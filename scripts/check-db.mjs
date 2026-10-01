@@ -10,13 +10,13 @@
 import { MongoClient } from "mongodb";
 import { SYSTEM_ROLES } from "../src/lib/rbac-catalog.js";
 
-const DEFAULT_DIVISIONS = [
-  { key: "social-media", label: "Social Media" },
-  { key: "seo", label: "SEO" },
-  { key: "webdev", label: "Web Development" },
-  { key: "graphics-designing", label: "Graphic Designing" },
-  { key: "orm", label: "ORM" },
-  { key: "content-writing", label: "Content Writing" },
+const DEFAULT_TEAMS = [
+  { name: "Social Media" },
+  { name: "SEO" },
+  { name: "Web Development" },
+  { name: "Graphic Designing" },
+  { name: "ORM" },
+  { name: "Content Writing" },
 ];
 
 const DEFAULT_ONBOARDING = {
@@ -56,7 +56,7 @@ try {
     db.collection("releaseVersions").createIndex({ version: 1 }, { unique: true }),
     db.collection("auditLogs").createIndex({ createdAt: -1 }),
     db.collection("projects").createIndex({ status: 1 }),
-    db.collection("projects").createIndex({ divisions: 1 }),
+    db.collection("projects").createIndex({ teamIds: 1 }),
     db.collection("tasks").createIndex({ projectId: 1 }),
     db.collection("tasks").createIndex({ status: 1 }),
     db.collection("tasks").createIndex({ assigneeId: 1 }),
@@ -64,7 +64,7 @@ try {
     db.collection("chatConversations").createIndex({ key: 1 }, { unique: true }),
     db.collection("chatConversations").createIndex({ participantIds: 1 }),
     db.collection("chatMessages").createIndex({ conversationId: 1, createdAt: 1 }),
-    db.collection("divisions").createIndex({ key: 1 }, { unique: true }),
+    db.collection("teams").createIndex({ name: 1 }, { unique: true }),
   ]);
 
   // Re-sync system roles to the catalog defaults. This is an explicit admin
@@ -102,17 +102,17 @@ try {
     },
     { upsert: true },
   );
-  for (let i = 0; i < DEFAULT_DIVISIONS.length; i++) {
-    const d = DEFAULT_DIVISIONS[i];
-    await db.collection("divisions").updateOne(
-      { key: d.key },
-      { $setOnInsert: { ...d, order: i, createdAt: now, updatedAt: now } },
+  for (let i = 0; i < DEFAULT_TEAMS.length; i++) {
+    const t = DEFAULT_TEAMS[i];
+    await db.collection("teams").updateOne(
+      { name: t.name },
+      { $setOnInsert: { ...t, memberIds: [], order: i, createdAt: now, updatedAt: now } },
       { upsert: true },
     );
   }
 
   console.log("\nSeeded. Current state:");
-  for (const name of ["users", "roles", "invitations", "sessions", "releaseVersions", "auditLogs", "projects", "tasks", "chatConversations", "chatMessages", "divisions"]) {
+  for (const name of ["users", "roles", "invitations", "sessions", "releaseVersions", "auditLogs", "projects", "tasks", "chatConversations", "chatMessages", "teams"]) {
     const n = await db.collection(name).countDocuments().catch(() => 0);
     console.log(`  ${name.padEnd(16)} ${n}`);
   }

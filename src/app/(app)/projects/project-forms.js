@@ -10,23 +10,23 @@ import {
   deleteProject,
 } from "@/lib/actions/projects";
 
-function DivisionPicker({ divisions = [], selected = [] }) {
+function TeamPicker({ teams = [], selected = [] }) {
   return (
-    <Field label="Divisions" hint="Select the divisions this project is assigned to.">
+    <Field label="Teams" hint="Select the team(s) working on this project — their members can be assigned tasks.">
       <div className="flex flex-wrap gap-2">
-        {divisions.length === 0 && <span className="text-sm text-gray">No divisions configured yet.</span>}
-        {divisions.map((d) => (
+        {teams.length === 0 && <span className="text-sm text-gray">No teams configured yet.</span>}
+        {teams.map((t) => (
           <label
-            key={d.key}
+            key={t.id}
             className="flex items-center gap-1.5 rounded-lg border border-gray/25 px-2.5 py-1 text-sm"
           >
             <input
               type="checkbox"
-              name="divisions"
-              value={d.key}
-              defaultChecked={selected.includes(d.key)}
+              name="teamIds"
+              value={t.id}
+              defaultChecked={selected.includes(t.id)}
             />
-            {d.label}
+            {t.name}
           </label>
         ))}
       </div>
@@ -34,31 +34,22 @@ function DivisionPicker({ divisions = [], selected = [] }) {
   );
 }
 
-function PeoplePicker({ people = [], selected = [] }) {
+function OwnerPicker({ owners = [], selected }) {
   return (
-    <Field label="Assign people" hint="Selected people are notified by email and in-app.">
-      <div className="flex flex-wrap gap-2">
-        {people.length === 0 && <span className="text-sm text-gray">No people available.</span>}
-        {people.map((u) => (
-          <label
-            key={u.id}
-            className="flex items-center gap-1.5 rounded-lg border border-gray/25 px-2.5 py-1 text-sm"
-          >
-            <input
-              type="checkbox"
-              name="memberIds"
-              value={u.id}
-              defaultChecked={selected.includes(u.id)}
-            />
+    <Field label="Owner" hint="A manager or admin. Defaults to you if left unset.">
+      <select name="ownerId" defaultValue={selected || ""} className={inputClass}>
+        <option value="">— me —</option>
+        {owners.map((u) => (
+          <option key={u.id} value={u.id}>
             {u.name || u.email}
-          </label>
+          </option>
         ))}
-      </div>
+      </select>
     </Field>
   );
 }
 
-export function ProjectForm({ project, divisions = [], people = [] }) {
+export function ProjectForm({ project, teams = [], owners = [] }) {
   const editing = !!project;
   return (
     <ActionForm
@@ -83,8 +74,8 @@ export function ProjectForm({ project, divisions = [], people = [] }) {
       <Field label="Description">
         <textarea name="description" rows={3} defaultValue={project?.description || ""} className={inputClass} />
       </Field>
-      <DivisionPicker divisions={divisions} selected={project?.divisions || []} />
-      <PeoplePicker people={people} selected={project?.memberIds || []} />
+      <TeamPicker teams={teams} selected={project?.teamIds || []} />
+      <OwnerPicker owners={owners} selected={project?.ownerId} />
       {/* <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="clientVisible" defaultChecked={project?.clientVisible} />
         Visible to client

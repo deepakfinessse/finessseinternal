@@ -16,7 +16,7 @@ export async function GET() {
   const header = [
     "Assignee",
     "Email",
-    "Divisions",
+    "Teams",
     "Completed",
     "On time",
     "Late",
@@ -30,7 +30,7 @@ export async function GET() {
       [
         s.user.name || s.user.email,
         s.user.email,
-        s.divisions.join(" / "),
+        s.teams.join(" / "),
         s.completed,
         s.onTime,
         s.late,

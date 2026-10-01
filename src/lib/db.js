@@ -22,7 +22,7 @@ export async function collections() {
     notifications: db.collection("notifications"),
     chatConversations: db.collection("chatConversations"),
     chatMessages: db.collection("chatMessages"),
-    divisions: db.collection("divisions"),
+    teams: db.collection("teams"),
     counters: db.collection("counters"),
     attendance: db.collection("attendance"),
   };
@@ -31,15 +31,16 @@ export async function collections() {
 /** Fixed id of the one team-wide channel — every active user is implicitly a member. */
 export const TEAM_GENERAL_ID = "team-general";
 
-// Seeded once into the `divisions` collection on a fresh database. After that,
-// divisions are fully super-admin managed (see src/lib/divisions.js).
-export const DEFAULT_DIVISIONS = [
-  { key: "social-media", label: "Social Media" },
-  { key: "seo", label: "SEO" },
-  { key: "webdev", label: "Web Development" },
-  { key: "graphics-designing", label: "Graphic Designing" },
-  { key: "orm", label: "ORM" },
-  { key: "content-writing", label: "Content Writing" },
+// Seeded once into the `teams` collection on a fresh database (with no
+// members yet — super-admin assigns people afterward). After that, teams are
+// fully super-admin managed (see src/lib/teams.js).
+export const DEFAULT_TEAMS = [
+  { name: "Social Media" },
+  { name: "SEO" },
+  { name: "Web Development" },
+  { name: "Graphic Designing" },
+  { name: "ORM" },
+  { name: "Content Writing" },
 ];
 
 export const DEFAULT_ONBOARDING = {
@@ -75,11 +76,11 @@ export async function ensureDbReady() {
       c.auditLogs.createIndex({ createdAt: -1 }),
       c.auditLogs.createIndex({ targetType: 1, targetId: 1 }),
       c.projects.createIndex({ status: 1 }),
-      c.projects.createIndex({ divisions: 1 }),
+      c.projects.createIndex({ teamIds: 1 }),
       c.projects.createIndex({ name: 1 }),
       c.tasks.createIndex({ projectId: 1 }),
       c.tasks.createIndex({ status: 1 }),
-      c.tasks.createIndex({ division: 1 }),
+      c.tasks.createIndex({ teamId: 1 }),
       c.tasks.createIndex({ assigneeId: 1 }),
       c.tasks.createIndex({ collaboratorIds: 1 }),
       c.tasks.createIndex({ endDate: 1 }),
@@ -90,7 +91,8 @@ export async function ensureDbReady() {
       c.chatConversations.createIndex({ key: 1 }, { unique: true }),
       c.chatConversations.createIndex({ participantIds: 1 }),
       c.chatMessages.createIndex({ conversationId: 1, createdAt: 1 }),
-      c.divisions.createIndex({ key: 1 }, { unique: true }),
+      c.teams.createIndex({ name: 1 }, { unique: true }),
+      c.teams.createIndex({ memberIds: 1 }),
       c.attendance.createIndex({ userId: 1, startedAt: -1 }),
       c.attendance.createIndex({ userId: 1, status: 1 }),
     ]);
@@ -110,11 +112,11 @@ export async function ensureDbReady() {
       { upsert: true },
     );
 
-    for (let i = 0; i < DEFAULT_DIVISIONS.length; i++) {
-      const d = DEFAULT_DIVISIONS[i];
-      await c.divisions.updateOne(
-        { key: d.key },
-        { $setOnInsert: { ...d, order: i, createdAt: now, updatedAt: now } },
+    for (let i = 0; i < DEFAULT_TEAMS.length; i++) {
+      const t = DEFAULT_TEAMS[i];
+      await c.teams.updateOne(
+        { name: t.name },
+        { $setOnInsert: { ...t, memberIds: [], order: i, createdAt: now, updatedAt: now } },
         { upsert: true },
       );
     }

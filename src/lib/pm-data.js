@@ -1,39 +1,52 @@
 import { ObjectId } from "mongodb";
 import { collections } from "./db";
 import { rolesById } from "./data";
-import { divisionLabelMap } from "./divisions";
+import { teamsMap } from "./teams";
 import { isOverdue, overdueDays, PRIORITIES } from "./pm-constants";
 
 const oid = (id) => (id instanceof ObjectId ? id : new ObjectId(String(id)));
 const iso = (d) => (d ? new Date(d).toISOString() : null);
-const divLabel = (dmap, k) => dmap[k] || k || "—";
+const teamLabel = (tmap, id) => (id && tmap.get(String(id))?.name) || (id ? String(id) : null) || "—";
 
 /* ------------------------------------------------------------------ projects */
 
 /**
- * Mongo filter limiting projects to ones a user may see: a project they're a
- * team member on, or one they hold a task in. `{}` (everything) for holders
- * of `project:read:all`.
+ * Mongo filter limiting projects to ones a user may see: a project whose
+ * team(s) they're on, or one they hold a task in. `{}` (everything) for
+ * holders of `project:read:all`.
  */
 async function projectScopeFilter(user) {
   if (!user || user.can("project:read:all") || user.can("*")) return {};
-  const { tasks } = await collections();
-  const myProjectIds = await tasks.distinct("projectId", {
-    $or: [{ assigneeId: oid(user.id) }, { collaboratorIds: oid(user.id) }],
-  });
-  return { $or: [{ memberIds: oid(user.id) }, { _id: { $in: myProjectIds } }] };
+  const { tasks, teams } = await collections();
+  const [myProjectIds, myTeamIds] = await Promise.all([
+    tasks.distinct("projectId", {
+      $or: [{ assigneeId: oid(user.id) }, { collaboratorIds: oid(user.id) }],
+    }),
+    teams.distinct("_id", { memberIds: oid(user.id) }),
+  ]);
+  return { $or: [{ teamIds: { $in: myTeamIds } }, { _id: { $in: myProjectIds } }] };
 }
 
-export function serializeProject(p, taskCounts = {}, dmap = {}) {
+/** Union of member ids across a project's teams — who can be assigned work on it. */
+function deriveMemberIds(teamIdStrs, tmap) {
+  const set = new Set();
+  for (const id of teamIdStrs) {
+    for (const m of tmap.get(id)?.memberIds || []) set.add(m);
+  }
+  return [...set];
+}
+
+export function serializeProject(p, taskCounts = {}, tmap = new Map()) {
+  const teamIdStrs = (p.teamIds || []).map(String);
   return {
     id: String(p._id),
     name: p.name,
     projectNumber: p.projectNumber || "",
     client: p.client || "",
     description: p.description || "",
-    divisions: p.divisions || [],
-    divisionLabels: (p.divisions || []).map((k) => divLabel(dmap, k)),
-    memberIds: (p.memberIds || []).map(String),
+    teamIds: teamIdStrs,
+    teamNames: teamIdStrs.map((id) => teamLabel(tmap, id)),
+    memberIds: deriveMemberIds(teamIdStrs, tmap),
     status: p.status || "onboarding",
     clientVisible: !!p.clientVisible,
     ownerId: p.ownerId ? String(p.ownerId) : null,
@@ -51,12 +64,12 @@ export function serializeProject(p, taskCounts = {}, dmap = {}) {
   };
 }
 
-export async function listProjects({ user, status, division, divisions, q } = {}) {
+export async function listProjects({ user, status, team, teams, q } = {}) {
   const { projects, tasks, users } = await collections();
-  const divList = [...(divisions || []), ...(division ? [division] : [])].filter(Boolean);
+  const teamList = [...(teams || []), ...(team ? [team] : [])].filter(Boolean);
   const query = {};
   if (status) query.status = status;
-  if (divList.length) query.divisions = { $in: divList };
+  if (teamList.length) query.teamIds = { $in: teamList.map(oid) };
 
   const and = [];
   if (q) {
@@ -73,7 +86,7 @@ export async function listProjects({ user, status, division, divisions, q } = {}
 
   const docs = await projects.find(query).sort({ createdAt: -1, _id: -1 }).toArray();
   const ids = docs.map((d) => d._id);
-  const dmap = await divisionLabelMap();
+  const tmap = await teamsMap();
 
   const [counts, overdue, meta] = await Promise.all([
     tasks
@@ -133,7 +146,7 @@ export async function listProjects({ user, status, division, divisions, q } = {}
 
   return docs.map((d) => {
     const agg = byProject.get(String(d._id)) || { total: 0, assignees: [], maxEndDate: null };
-    const base = serializeProject(d, agg, dmap);
+    const base = serializeProject(d, agg, tmap);
     const total = base.taskCounts.total;
     const targetDate = agg.maxEndDate ? new Date(agg.maxEndDate).toISOString() : null;
     return {
@@ -189,10 +202,13 @@ export async function getProject(user, id) {
     status: { $ne: "completed" },
     endDate: { $lt: new Date() },
   });
-  const base = serializeProject(p, counts, await divisionLabelMap());
-  const memberDocs = base.memberIds.length
-    ? await users.find({ _id: { $in: base.memberIds.map(oid) } }).toArray()
-    : [];
+  const base = serializeProject(p, counts, await teamsMap());
+  const [memberDocs, ownerDoc] = await Promise.all([
+    base.memberIds.length
+      ? users.find({ _id: { $in: base.memberIds.map(oid) } }).toArray()
+      : [],
+    base.ownerId ? users.findOne({ _id: oid(base.ownerId) }) : null,
+  ]);
   return {
     ...base,
     members: memberDocs.map((u) => ({
@@ -201,6 +217,9 @@ export async function getProject(user, id) {
       email: u.email,
       image: u.image || null,
     })),
+    owner: ownerDoc
+      ? { id: String(ownerDoc._id), name: ownerDoc.name || "", email: ownerDoc.email, image: ownerDoc.image || null }
+      : null,
   };
 }
 
@@ -212,7 +231,7 @@ export function taskScopeFilter(user) {
   return { $or: [{ assigneeId: oid(user.id) }, { collaboratorIds: oid(user.id) }] };
 }
 
-export function serializeTask(t, { project, users, dmap = {} } = {}) {
+export function serializeTask(t, { project, users, tmap = new Map() } = {}) {
   const u = (id) => {
     if (!id) return null;
     const d = users?.get(String(id));
@@ -232,8 +251,8 @@ export function serializeTask(t, { project, users, dmap = {} } = {}) {
     taskNumber: t.taskNumber || "",
     projectId: String(t.projectId),
     project: project ? { id: String(project._id), name: project.name, client: project.client || "" } : null,
-    division: t.division || null,
-    divisionLabel: divLabel(dmap, t.division),
+    teamId: t.teamId ? String(t.teamId) : null,
+    teamName: teamLabel(tmap, t.teamId),
     title: t.title,
     description: t.description || "",
     priority: t.priority || "medium",
@@ -308,7 +327,7 @@ export async function listTasks(user, filters = {}) {
   const { tasks, projects } = await collections();
   const {
     projectId, projectIds,
-    division, divisions,
+    team, teams,
     status,
     assigneeId, assigneeIds,
     priorities,
@@ -322,12 +341,12 @@ export async function listTasks(user, filters = {}) {
       .filter((v) => ObjectId.isValid(v))
       .map((v) => new ObjectId(String(v)));
   const projList = oidList(projectId, projectIds);
-  const divList = arr(division, divisions);
+  const teamList = oidList(team, teams);
   const asgList = oidList(assigneeId, assigneeIds);
 
   const query = { ...taskScopeFilter(user) };
   if (projList.length) query.projectId = { $in: projList };
-  if (divList.length) query.division = { $in: divList };
+  if (teamList.length) query.teamId = { $in: teamList };
   if (asgList.length) query.assigneeId = { $in: asgList };
   if (priorities?.length) query.priority = { $in: priorities };
   if (status) query.status = status;
@@ -348,14 +367,14 @@ export async function listTasks(user, filters = {}) {
   if (q) query.title = { $regex: q, $options: "i" };
 
   const docs = await tasks.find(query).sort({ endDate: 1, priority: -1, _id: -1 }).toArray();
-  const [userMap, projDocs, dmap] = await Promise.all([
+  const [userMap, projDocs, tmap] = await Promise.all([
     hydrateUsers(docs),
     projects.find({ _id: { $in: [...new Set(docs.map((d) => String(d.projectId)))].map(oid) } }).toArray(),
-    divisionLabelMap(),
+    teamsMap(),
   ]);
   const projMap = new Map(projDocs.map((p) => [String(p._id), p]));
   return docs.map((t) =>
-    serializeTask(t, { project: projMap.get(String(t.projectId)), users: userMap, dmap }),
+    serializeTask(t, { project: projMap.get(String(t.projectId)), users: userMap, tmap }),
   );
 }
 
@@ -368,12 +387,12 @@ export async function getTask(user, id) {
     return null;
   }
   if (!t) return null;
-  const [userMap, project, dmap] = await Promise.all([
+  const [userMap, project, tmap] = await Promise.all([
     hydrateUsers([t]),
     projects.findOne({ _id: t.projectId }),
-    divisionLabelMap(),
+    teamsMap(),
   ]);
-  return serializeTask(t, { project, users: userMap, dmap });
+  return serializeTask(t, { project, users: userMap, tmap });
 }
 
 export async function taskStats(user) {
@@ -398,9 +417,9 @@ export async function analyticsOverview() {
   const { tasks, projects } = await collections();
   const now = new Date();
 
-  const [byStatus, byDivision, byPriority, totals] = await Promise.all([
+  const [byStatus, byTeam, byPriority, totals] = await Promise.all([
     tasks.aggregate([{ $group: { _id: "$status", n: { $sum: 1 } } }]).toArray(),
-    tasks.aggregate([{ $group: { _id: "$division", n: { $sum: 1 } } }]).toArray(),
+    tasks.aggregate([{ $group: { _id: "$teamId", n: { $sum: 1 } } }]).toArray(),
     tasks.aggregate([{ $group: { _id: "$priority", n: { $sum: 1 } } }]).toArray(),
     tasks.aggregate([
       {
@@ -428,7 +447,7 @@ export async function analyticsOverview() {
     activeProjects,
     completionRate: t.total ? Math.round((t.completed / t.total) * 100) : 0,
     byStatus: Object.fromEntries(byStatus.map((r) => [r._id || "unknown", r.n])),
-    byDivision: Object.fromEntries(byDivision.map((r) => [r._id || "unknown", r.n])),
+    byTeam: Object.fromEntries(byTeam.map((r) => [r._id ? String(r._id) : "unknown", r.n])),
     byPriority: Object.fromEntries(byPriority.map((r) => [r._id || "unknown", r.n])),
   };
 }
@@ -485,35 +504,35 @@ export async function calendarTasks({ from, to }) {
     .find({ endDate: { $gte: new Date(from), $lte: new Date(to) } })
     .sort({ endDate: 1 })
     .toArray();
-  const [userMap, projDocs, dmap] = await Promise.all([
+  const [userMap, projDocs, tmap] = await Promise.all([
     hydrateUsers(docs),
     projects.find({ _id: { $in: [...new Set(docs.map((d) => String(d.projectId)))].map(oid) } }).toArray(),
-    divisionLabelMap(),
+    teamsMap(),
   ]);
   const projMap = new Map(projDocs.map((p) => [String(p._id), p]));
-  return docs.map((t) => serializeTask(t, { project: projMap.get(String(t.projectId)), users: userMap, dmap }));
+  return docs.map((t) => serializeTask(t, { project: projMap.get(String(t.projectId)), users: userMap, tmap }));
 }
 
-/** division × status matrix for the overdue / status heatmap. */
+/** team × status matrix for the overdue / status heatmap. */
 export async function statusHeatmap() {
   const { tasks } = await collections();
   const rows = await tasks
-    .aggregate([{ $group: { _id: { d: "$division", s: "$status" }, n: { $sum: 1 } } }])
+    .aggregate([{ $group: { _id: { d: "$teamId", s: "$status" }, n: { $sum: 1 } } }])
     .toArray();
   const overdueRows = await tasks
     .aggregate([
       { $match: { status: { $ne: "completed" }, endDate: { $lt: new Date() } } },
-      { $group: { _id: "$division", n: { $sum: 1 } } },
+      { $group: { _id: "$teamId", n: { $sum: 1 } } },
     ])
     .toArray();
   const matrix = {};
   for (const r of rows) {
-    const d = r._id.d || "unknown";
+    const d = r._id.d ? String(r._id.d) : "unknown";
     matrix[d] = matrix[d] || {};
     matrix[d][r._id.s] = r.n;
   }
   for (const r of overdueRows) {
-    const d = r._id || "unknown";
+    const d = r._id ? String(r._id) : "unknown";
     matrix[d] = matrix[d] || {};
     matrix[d].overdue = r.n;
   }
@@ -633,26 +652,26 @@ export async function deliverySla() {
 }
 
 /**
- * Cumulative time-in-system by division over the last 90 days — the "where the
+ * Cumulative time-in-system by team over the last 90 days — the "where the
  * time actually goes" view. Active tasks count from creation to now; completed
  * tasks count their full cycle time if they closed inside the window.
  */
-export async function divisionLoad() {
+export async function teamLoad() {
   const { tasks } = await collections();
   const now = Date.now();
   const since = now - 90 * DAY_MS;
 
-  const [docs, dmap] = await Promise.all([
+  const [docs, tmap] = await Promise.all([
     tasks
-      .find({}, { projection: { division: 1, status: 1, createdAt: 1, completedAt: 1, endDate: 1 } })
+      .find({}, { projection: { teamId: 1, status: 1, createdAt: 1, completedAt: 1, endDate: 1 } })
       .toArray(),
-    divisionLabelMap(),
+    teamsMap(),
   ]);
 
   const byD = new Map();
   for (const t of docs) {
-    const key = t.division || "unknown";
-    if (!byD.has(key)) byD.set(key, { division: key, total: 0, overdue: 0, late: 0, hours: 0 });
+    const key = t.teamId ? String(t.teamId) : "unknown";
+    if (!byD.has(key)) byD.set(key, { team: key, total: 0, overdue: 0, late: 0, hours: 0 });
     const row = byD.get(key);
     row.total += 1;
     const created = +new Date(t.createdAt || 0) || now;
@@ -671,7 +690,7 @@ export async function divisionLoad() {
 
   return [...byD.values()]
     .filter((r) => r.total > 0)
-    .map((r) => ({ ...r, label: divLabel(dmap, r.division), hours: Math.round(r.hours) }))
+    .map((r) => ({ ...r, label: teamLabel(tmap, r.team === "unknown" ? null : r.team), hours: Math.round(r.hours) }))
     .sort((a, b) => b.hours - a.hours);
 }
 
@@ -690,7 +709,7 @@ export async function assigneeScorecard({ months = 6 } = {}) {
       {
         $project: {
           assigneeId: 1,
-          division: 1,
+          teamId: 1,
           ym: { $dateToString: { format: "%Y-%m", date: "$completedAt" } },
           onTime: {
             $cond: [
@@ -710,7 +729,7 @@ export async function assigneeScorecard({ months = 6 } = {}) {
           onTime: { $sum: "$onTime" },
           late: { $sum: "$late" },
           overrunMs: { $sum: "$overrunMs" },
-          divisions: { $addToSet: "$division" },
+          teams: { $addToSet: "$teamId" },
         },
       },
     ])
@@ -719,7 +738,7 @@ export async function assigneeScorecard({ months = 6 } = {}) {
   const activeRows = await tasks
     .aggregate([
       { $match: { status: { $ne: "completed" }, assigneeId: { $ne: null } } },
-      { $group: { _id: "$assigneeId", n: { $sum: 1 }, divisions: { $addToSet: "$division" } } },
+      { $group: { _id: "$assigneeId", n: { $sum: 1 }, teams: { $addToSet: "$teamId" } } },
     ])
     .toArray();
 
@@ -734,7 +753,7 @@ export async function assigneeScorecard({ months = 6 } = {}) {
   const ensure = (id) => {
     if (!byA.has(id))
       byA.set(id, {
-        id, completed: 0, onTime: 0, late: 0, overrunMs: 0, months: {}, divisions: new Set(), active: 0,
+        id, completed: 0, onTime: 0, late: 0, overrunMs: 0, months: {}, teams: new Set(), active: 0,
       });
     return byA.get(id);
   };
@@ -745,18 +764,18 @@ export async function assigneeScorecard({ months = 6 } = {}) {
     a.late += r.late;
     a.overrunMs += r.overrunMs;
     a.months[r._id.ym] = { completed: r.completed, onTime: r.onTime };
-    (r.divisions || []).forEach((d) => d && a.divisions.add(d));
+    (r.teams || []).forEach((d) => d && a.teams.add(String(d)));
   }
   for (const r of activeRows) {
     const a = ensure(String(r._id));
     a.active = r.n;
-    (r.divisions || []).forEach((d) => d && a.divisions.add(d));
+    (r.teams || []).forEach((d) => d && a.teams.add(String(d)));
   }
 
   const ids = [...byA.keys()];
-  const [uDocs, dmap] = await Promise.all([
+  const [uDocs, tmap] = await Promise.all([
     ids.length ? users.find({ _id: { $in: ids.map(oid) } }).toArray() : [],
-    divisionLabelMap(),
+    teamsMap(),
   ]);
   const uMap = new Map(uDocs.map((u) => [String(u._id), u]));
 
@@ -765,7 +784,7 @@ export async function assigneeScorecard({ months = 6 } = {}) {
       user: uMap.get(a.id)
         ? { id: a.id, name: uMap.get(a.id).name || "", email: uMap.get(a.id).email }
         : { id: a.id, name: "Unknown", email: "" },
-      divisions: [...a.divisions].map((k) => divLabel(dmap, k)),
+      teams: [...a.teams].map((k) => teamLabel(tmap, k)),
       completed: a.completed,
       onTime: a.onTime,
       late: a.late,

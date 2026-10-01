@@ -2,10 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission, getCurrentUser } from "@/lib/access";
 import { getProject, listTasks } from "@/lib/pm-data";
-import { listUsers } from "@/lib/data";
-import { listDivisions } from "@/lib/divisions";
+import { listEligibleOwners } from "@/lib/data";
+import { listTeams } from "@/lib/teams";
 import { Card, Badge, Stat, EmptyState, LinkButton, AvatarStack, fmtDate, fmtDateTime } from "@/components/ui";
-import { DivisionDot, TaskStatusBadge, PriorityChip, OverdueTag, taskCode } from "@/components/pm-ui";
+import { TeamDot, TaskStatusBadge, PriorityChip, OverdueTag, taskCode } from "@/components/pm-ui";
 import { ProjectForm, ProjectStatusForm, DeleteProjectButton } from "../project-forms";
 
 export async function generateMetadata({ params }) {
@@ -26,10 +26,10 @@ export default async function ProjectDetailPage({ params }) {
   const canCreateTask = user.can("task:create");
   const canApprove = user.can("task:approve");
 
-  const [tasks, divisions, people] = await Promise.all([
+  const [tasks, teams, owners] = await Promise.all([
     listTasks(user, { projectId: id }),
-    listDivisions(),
-    canEdit && user.can("assignee:read") ? listUsers({ status: "active" }) : [],
+    listTeams(),
+    canEdit ? listEligibleOwners() : [],
   ]);
 
   // Time log, project-wide: every hour entry across the project's tasks —
@@ -74,11 +74,12 @@ export default async function ProjectDetailPage({ params }) {
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-faint">
           {project.client && <span>Client: {project.client}</span>}
-          {project.client && project.divisions.length > 0 && <span>·</span>}
-          {project.divisions.map((d, i) => (
-            <span key={d} className="inline-flex items-center gap-1.5">
-              <DivisionDot size={6} />
-              {project.divisionLabels[i] || d}
+          {project.owner && <span>· Owner: {project.owner.name || project.owner.email}</span>}
+          {project.teamIds.length > 0 && <span>·</span>}
+          {project.teamIds.map((id, i) => (
+            <span key={id} className="inline-flex items-center gap-1.5">
+              <TeamDot size={6} />
+              {project.teamNames[i] || id}
             </span>
           ))}
         </div>
@@ -121,8 +122,8 @@ export default async function ProjectDetailPage({ params }) {
                         <span className="text-[13px] font-medium">{t.title}</span>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-faint">
                           <span className="inline-flex items-center gap-1">
-                            <DivisionDot size={6} />
-                            {t.divisionLabel}
+                            <TeamDot size={6} />
+                            {t.teamName}
                           </span>
                           · {t.assignee?.name || t.assignee?.email || "unassigned"}
                           {t.endDate && ` · due ${fmtDate(t.endDate)}`}
@@ -187,7 +188,7 @@ export default async function ProjectDetailPage({ params }) {
             </Card>
           )}
 
-          <Card title="Team" description="People assigned to this project.">
+          <Card title="People" description="Everyone on this project's team(s) — assignable to its tasks.">
             {project.members.length === 0 ? (
               <p className="text-sm text-gray">No one assigned yet.</p>
             ) : (
@@ -203,7 +204,7 @@ export default async function ProjectDetailPage({ params }) {
           </Card>
           {canEdit && (
             <Card title="Edit project">
-              <ProjectForm project={project} divisions={divisions} people={people} />
+              <ProjectForm project={project} teams={teams} owners={owners} />
             </Card>
           )}
           {user.can("project:delete") && (

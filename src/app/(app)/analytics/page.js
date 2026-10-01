@@ -7,7 +7,7 @@ import {
   statusHeatmap,
   slaReport,
 } from "@/lib/pm-data";
-import { listDivisions } from "@/lib/divisions";
+import { listTeams } from "@/lib/teams";
 import { TASK_STATUSES, STATUS_LABEL } from "@/lib/pm-constants";
 import { Card, Stat, EmptyState, fmtDate } from "@/components/ui";
 import { TaskStatusBadge, OverdueTag, STATUS_COLOR, OVERDUE_COLOR } from "@/components/pm-ui";
@@ -29,13 +29,13 @@ export default async function AnalyticsPage() {
   const to = new Date(from);
   to.setDate(to.getDate() + 7 * 6); // six weeks out
 
-  const [overview, assignees, calendar, heatmap, sla, divisions] = await Promise.all([
+  const [overview, assignees, calendar, heatmap, sla, teams] = await Promise.all([
     analyticsOverview(),
     globalAssigneeView(),
     calendarTasks({ from, to }),
     statusHeatmap(),
     slaReport({ months: 6 }),
-    listDivisions(),
+    listTeams(),
   ]);
 
   // group calendar tasks by ISO week
@@ -57,7 +57,7 @@ export default async function AnalyticsPage() {
 
   const heatMax = Math.max(
     1,
-    ...divisions.flatMap((d) => TASK_STATUSES.map((s) => heatmap[d.key]?.[s] || 0)),
+    ...teams.flatMap((t) => TASK_STATUSES.map((s) => heatmap[t.id]?.[s] || 0)),
   );
 
   return (
@@ -147,12 +147,12 @@ export default async function AnalyticsPage() {
           </ol>
         </Card>
 
-        <Card title="Status & overdue heatmap" description="Tasks by division and state.">
+        <Card title="Status & overdue heatmap" description="Tasks by team and state.">
           <div className="overflow-x-auto">
             <table className="w-full border-separate border-spacing-1 text-xs">
               <thead>
                 <tr>
-                  <th className="text-left font-semibold text-gray">Division</th>
+                  <th className="text-left font-semibold text-gray">Team</th>
                   {TASK_STATUSES.map((s) => (
                     <th key={s} className="px-1 font-semibold text-gray">{STATUS_LABEL[s]}</th>
                   ))}
@@ -160,11 +160,11 @@ export default async function AnalyticsPage() {
                 </tr>
               </thead>
               <tbody>
-                {divisions.map((d) => (
-                  <tr key={d.key}>
-                    <td className="whitespace-nowrap pr-2 text-gray">{d.label}</td>
+                {teams.map((t) => (
+                  <tr key={t.id}>
+                    <td className="whitespace-nowrap pr-2 text-gray">{t.name}</td>
                     {TASK_STATUSES.map((s) => {
-                      const n = heatmap[d.key]?.[s] || 0;
+                      const n = heatmap[t.id]?.[s] || 0;
                       return (
                         <td
                           key={s}
@@ -182,12 +182,12 @@ export default async function AnalyticsPage() {
                     <td
                       className="rounded text-center font-semibold"
                       style={{
-                        backgroundColor: heatmap[d.key]?.overdue
-                          ? `color-mix(in srgb, ${OVERDUE_COLOR} ${Math.round(((heatmap[d.key].overdue) / heatMax) * 70) + 12}%, transparent)`
+                        backgroundColor: heatmap[t.id]?.overdue
+                          ? `color-mix(in srgb, ${OVERDUE_COLOR} ${Math.round(((heatmap[t.id].overdue) / heatMax) * 70) + 12}%, transparent)`
                           : "transparent",
                       }}
                     >
-                      {heatmap[d.key]?.overdue || ""}
+                      {heatmap[t.id]?.overdue || ""}
                     </td>
                   </tr>
                 ))}

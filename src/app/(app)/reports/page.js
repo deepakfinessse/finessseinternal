@@ -6,7 +6,7 @@ import {
   slaReport,
   assigneeStandups,
   clientStatusUpdates,
-  divisionLoad,
+  teamLoad,
 } from "@/lib/pm-data";
 import { PageHeader, Card, EmptyState, Avatar } from "@/components/ui";
 import { RingGauge, Sparkline, RateBar } from "@/components/pm-ui";
@@ -45,7 +45,7 @@ export default async function ReportsPage({ searchParams }) {
   const [sla, scorecard, load, monthly, standups, clientUpdates] = await Promise.all([
     tab === "sla" ? deliverySla() : null,
     tab === "sla" ? assigneeScorecard({ months: 6 }) : null,
-    tab === "sla" ? divisionLoad() : null,
+    tab === "sla" ? teamLoad() : null,
     tab === "history" ? slaReport({ months: 12 }) : null,
     tab === "briefs" ? assigneeStandups() : null,
     tab === "briefs" ? clientStatusUpdates() : null,
@@ -149,7 +149,7 @@ export default async function ReportsPage({ searchParams }) {
                                 {s.user.name || s.user.email}
                               </Link>
                               <div className="mono truncate text-[9px] uppercase tracking-[0.1em] text-faint">
-                                {s.divisions.join(" · ") || "—"}
+                                {s.teams.join(" · ") || "—"}
                               </div>
                             </div>
                           </div>
@@ -186,7 +186,7 @@ export default async function ReportsPage({ searchParams }) {
                 Where the time actually goes
               </span>
             }
-            description="Cumulative time-in-system by division over the last 90 days — active work counts from creation, completed work counts its full cycle."
+            description="Cumulative time-in-system by team over the last 90 days — active work counts from creation, completed work counts its full cycle."
           >
             {load.length === 0 ? (
               <EmptyState title="No task activity yet" />
@@ -195,7 +195,7 @@ export default async function ReportsPage({ searchParams }) {
                 {load.map((r) => {
                   const pct = Math.round((r.hours / maxLoadHours) * 100);
                   return (
-                    <div key={r.division} className="flex items-center gap-3 text-[12px]">
+                    <div key={r.team} className="flex items-center gap-3 text-[12px]">
                       <span className="w-40 shrink-0 truncate text-dim">{r.label}</span>
                       <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-surface-3">
                         <span

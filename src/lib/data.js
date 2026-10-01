@@ -84,6 +84,14 @@ export async function getUser(id) {
   return u ? serializeUser(u, map) : null;
 }
 
+const OWNER_ROLE_KEYS = ["manager", "admin", "super-admin"];
+
+/** Active users eligible to own a project — managers and admins. */
+export async function listEligibleOwners() {
+  const all = await listUsers({ status: "active" });
+  return all.filter((u) => u.roles.some((r) => OWNER_ROLE_KEYS.includes(r.key)));
+}
+
 export async function countByStatus() {
   const { users } = await collections();
   const rows = await users

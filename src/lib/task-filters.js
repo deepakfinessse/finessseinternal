@@ -12,7 +12,7 @@ export const TASK_FILTER_KEYS = [
   "project",
   "assignee",
   "priority",
-  "division",
+  "team",
   "from",
   "to",
   "q",
@@ -34,7 +34,7 @@ export function parseTaskFilters(getter) {
     project: csv(g("project")),
     assignee: csv(g("assignee")),
     priority: csv(g("priority")).filter((p) => PRIORITY_KEYS.includes(p)),
-    division: csv(g("division")),
+    team: csv(g("team")),
     from: validDate(g("from")),
     to: validDate(g("to")),
     q: (g("q") || "").trim(),
@@ -71,7 +71,7 @@ export function filterListArgs(f, userId) {
   const assignee = [...f.assignee];
   if (f.mine && userId && !assignee.includes(userId)) assignee.push(userId);
   return {
-    divisions: f.division,
+    teams: f.team,
     priorities: f.priority,
     projectIds: f.project,
     assigneeIds: assignee,
@@ -89,7 +89,7 @@ export function serializeFilters(f) {
   if (f.mine) p.set("mine", "1");
   if (f.overdue) p.set("overdue", "1");
   if (f.blocked) p.set("blocked", "1");
-  for (const k of ["project", "assignee", "priority", "division"]) {
+  for (const k of ["project", "assignee", "priority", "team"]) {
     if (f[k]?.length) p.set(k, f[k].join(","));
   }
   if (f.from) p.set("from", f.from);
@@ -103,7 +103,7 @@ export function filterCount(f) {
     f.project.length +
     f.assignee.length +
     f.priority.length +
-    f.division.length +
+    f.team.length +
     (f.mine ? 1 : 0) +
     (f.overdue ? 1 : 0) +
     (f.blocked ? 1 : 0) +

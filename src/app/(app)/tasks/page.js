@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/access";
 import { listTasks, taskStats, listProjectOptions } from "@/lib/pm-data";
 import { listUsers } from "@/lib/data";
-import { listDivisions } from "@/lib/divisions";
+import { listTeams } from "@/lib/teams";
 import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-filters";
 import { PageHeader } from "@/components/ui";
 import { DeliveryFilters } from "@/components/delivery-filters";
@@ -25,12 +25,12 @@ export default async function BoardPage({ searchParams }) {
     cookieValue: cookieStore.get(FILTER_COOKIE)?.value,
   });
 
-  const [tasks, stats, people, projects, divisions] = await Promise.all([
+  const [tasks, stats, people, projects, teams] = await Promise.all([
     listTasks(user, filterListArgs(filters, user.id)),
     taskStats(user),
     canSeeAll ? listUsers({ status: "active" }) : [],
     user.can("project:read") ? listProjectOptions({ user }) : [],
-    listDivisions(),
+    listTeams(),
   ]);
 
   const sig = tasks.map((t) => `${t.id}:${t.status}`).sort().join("|");
@@ -53,7 +53,7 @@ export default async function BoardPage({ searchParams }) {
         value={filters}
         projects={projects}
         people={people.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
-        divisions={divisions}
+        teams={teams}
         canSeeAll={canSeeAll}
       />
 

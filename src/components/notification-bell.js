@@ -19,6 +19,7 @@ const TONE = {
   "task.assigned": "accent",
   "task.collaborator_added": "accent",
   "project.assigned": "accent",
+  "project.owner_assigned": "accent",
   "task.reopened": "caution",
   "role.assigned": "accent",
   "invite.accepted": "ok",

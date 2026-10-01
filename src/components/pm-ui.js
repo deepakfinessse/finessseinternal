@@ -1,18 +1,18 @@
 import { STATUS_LABEL, APPROVAL_LABEL, overdueDays } from "@/lib/pm-constants";
 import { Chip } from "@/components/ui";
 
-/* ---------------------------------------------------------------- division */
+/* --------------------------------------------------------------------- team */
 
-// Divisions aren't colour-coded — every division gets the same dot in the
-// text colour (black in light mode, flips to white in dark mode).
-export function DivisionDot({ size = 7 }) {
+// Teams aren't colour-coded — every team gets the same dot in the text colour
+// (black in light mode, flips to white in dark mode).
+export function TeamDot({ size = 7 }) {
   return <span style={{ width: size, height: size }} className="inline-block shrink-0 rounded-full bg-text" />;
 }
 
-export function DivisionLabel({ label }) {
+export function TeamLabel({ label }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-dim">
-      <DivisionDot />
+      <TeamDot />
       {label}
     </span>
   );
@@ -24,10 +24,7 @@ export function DivisionLabel({ label }) {
  */
 export function taskCode(task) {
   if (task.taskNumber) return task.taskNumber;
-  const parts = String(task.division || "").split("-").filter(Boolean);
-  const abbr = parts.length
-    ? (parts.length === 1 ? parts[0].slice(0, 3) : parts.map((p) => p[0]).join("").slice(0, 3)).toUpperCase()
-    : "TSK";
+  const abbr = String(task.teamName || "").replace(/[^a-zA-Z]/g, "").slice(0, 3).toUpperCase() || "TSK";
   const n = (parseInt(String(task.id).slice(-4), 16) % 900) + 100;
   return `${abbr}-${n}`;
 }
@@ -217,7 +214,4 @@ export function RateBar({ pct, width = 96 }) {
 
 /* keep the old export name working for any not-yet-restyled page */
 export const PriorityBadge = PriorityChip;
-export const DivisionTag = ({ label }) => (
-  <span className="mono text-[10px] uppercase tracking-[0.08em] text-faint">{label}</span>
-);
 export const ApprovalTag = ApprovalChip;

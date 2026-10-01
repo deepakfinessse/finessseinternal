@@ -15,7 +15,7 @@ export const PERMISSION_CATALOG = [
   { key: "project:read", group: "Projects", description: "View projects you're assigned to (a team member on, or with a task in)" },
   { key: "project:read:all", group: "Projects", description: "View every project across the workspace" },
   { key: "project:create", group: "Projects", description: "Onboard a new project" },
-  { key: "project:update", group: "Projects", description: "Edit project details, divisions, status" },
+  { key: "project:update", group: "Projects", description: "Edit project details, teams, status" },
   { key: "project:delete", group: "Projects", description: "Archive or delete projects" },
 
   { key: "task:read", group: "Tasks", description: "View tasks you are assigned to or collaborating on" },
@@ -46,7 +46,7 @@ export const PERMISSION_CATALOG = [
   { key: "audit:read", group: "Audit", description: "View the audit log" },
   { key: "settings:manage", group: "Settings", description: "Manage workspace settings" },
 
-  { key: "division:manage", group: "Divisions", description: "Create, rename and delete agency divisions" },
+  { key: "team:manage", group: "Teams", description: "Create, rename and manage team membership" },
 
   { key: "attendance:track", group: "Attendance", description: "Clock in/out and view your own attendance history" },
   { key: "attendance:read:all", group: "Attendance", description: "View attendance for everyone in the workspace" },

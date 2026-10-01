@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check-db": "node --env-file=.env.local scripts/check-db.mjs"
+    "check-db": "node --env-file=.env.local scripts/check-db.mjs",
+    "migrate-teams": "node --env-file=.env.local scripts/migrate-divisions-to-teams.mjs"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.11.3",
