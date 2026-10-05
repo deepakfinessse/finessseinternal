@@ -3,7 +3,47 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+
+const MESSAGE_LIFETIME_MS = 10000;
+const FADE_DURATION_MS = 500;
+
+/**
+ * An inline error/success message that fades out on its own after a while.
+ * The parent remounts this via `key` on every new action result, so even a
+ * second, identically-worded message restarts the clock from a clean state.
+ */
+function DismissibleMessage({ tone, children }) {
+  const [fading, setFading] = useState(false);
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => setFading(true), MESSAGE_LIFETIME_MS);
+    return () => clearTimeout(fadeTimer);
+  }, []);
+
+  useEffect(() => {
+    if (!fading) return;
+    const hideTimer = setTimeout(() => setHidden(true), FADE_DURATION_MS);
+    return () => clearTimeout(hideTimer);
+  }, [fading]);
+
+  if (hidden) return null;
+
+  const toneClass =
+    tone === "error" ? "border-secondary/40 bg-secondary/10" : "border-primary/30 bg-primary/10";
+
+  return (
+    <p
+      className={`mt-2 rounded-lg border px-3 py-2 text-sm transition-opacity ease-out ${toneClass} ${
+        fading ? "opacity-0" : "opacity-100"
+      }`}
+      style={{ transitionDuration: `${FADE_DURATION_MS}ms` }}
+    >
+      {children}
+    </p>
+  );
+}
 
 export function SubmitButton({ children, variant = "primary", className = "", disabled = false }) {
   const { pending } = useFormStatus();
@@ -39,6 +79,18 @@ export function ActionForm({
   const [state, formAction] = useActionState(action, null);
   const router = useRouter();
 
+  // Each new result needs a fresh DismissibleMessage instance — including a
+  // repeat of the same wording — so its fade timer restarts. Rather than
+  // reset that child's state from an effect, give it a new `key` the moment
+  // `state` changes, computed here during render (React's documented pattern
+  // for deriving state from a changed prop without an extra effect).
+  const [prevState, setPrevState] = useState(state);
+  const [msgKey, setMsgKey] = useState(0);
+  if (state !== prevState) {
+    setPrevState(state);
+    setMsgKey((k) => k + 1);
+  }
+
   useEffect(() => {
     if (state?.ok) {
       if (state.redirect) router.push(state.redirect);
@@ -54,16 +106,14 @@ export function ActionForm({
       ))}
       {children}
       {state?.error && (
-        <p className="mt-2 rounded-lg border border-secondary/40 bg-secondary/10 px-3 py-2 text-sm">
+        <DismissibleMessage key={msgKey} tone="error">
           {state.error}
-        </p>
+        </DismissibleMessage>
       )}
       {state?.ok && successMessage && (
-        <p className="mt-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm">
-          {typeof successMessage === "function"
-            ? successMessage(state)
-            : successMessage}
-        </p>
+        <DismissibleMessage key={msgKey} tone="success">
+          {typeof successMessage === "function" ? successMessage(state) : successMessage}
+        </DismissibleMessage>
       )}
     </form>
   );

@@ -42,18 +42,38 @@ async function actorOwnTeamIds(me) {
   return docs.map((d) => String(d._id));
 }
 
+/**
+ * The one team gate every task-mutating action goes through. Admin/
+ * super-admin (task:assign:all) pass unconditionally — they work across every
+ * team. Everyone else, managers included, must themselves be on the task's
+ * own team, or they get a plain error instead of being allowed to touch it —
+ * having task:approve/task:update at the role level isn't enough on its own.
+ */
+async function assertOwnTeam(me, task) {
+  const ownTeams = await actorOwnTeamIds(me);
+  if (!ownTeams) return null;
+  if (task.teamId && !ownTeams.includes(String(task.teamId))) {
+    return "You can only work on tasks for your own team.";
+  }
+  return null;
+}
+
 // Tasks written before the blocker-history change carry a single `blocker`
 // object; fold it in as the first entry so nothing is lost.
 const blockerHistory = (task) => task.blockers || (task.blocker ? [task.blocker] : []);
 
 /** A user may act on a task's lifecycle if they can approve, or they're the
- *  assignee / a collaborator with task:transition. */
+ *  assignee / a collaborator with task:transition — and either way, only for
+ *  their own team unless they hold task:assign:all. */
 async function loadActableTask(taskId, { need = "task:transition" } = {}) {
   const me = await getCurrentUser();
   if (!me || me.status !== "active") return { error: "Not signed in." };
   const { tasks } = await collections();
   const task = await tasks.findOne({ _id: oid(taskId) });
   if (!task) return { error: "Task not found." };
+
+  const teamErr = await assertOwnTeam(me, task);
+  if (teamErr) return { error: teamErr };
 
   const isOwner =
     String(task.assigneeId) === me.id ||
@@ -68,13 +88,17 @@ async function loadActableTask(taskId, { need = "task:transition" } = {}) {
 }
 
 /** Notes and attachments: open to an admin (task:update) or the task's
- *  assignee / a collaborator — no task:transition requirement. */
+ *  assignee / a collaborator — no task:transition requirement — and, same as
+ *  every other action here, only for your own team unless task:assign:all. */
 async function loadContributableTask(taskId) {
   const me = await getCurrentUser();
   if (!me || me.status !== "active") return { error: "Not signed in." };
   const { tasks } = await collections();
   const task = await tasks.findOne({ _id: oid(taskId) });
   if (!task) return { error: "Task not found." };
+
+  const teamErr = await assertOwnTeam(me, task);
+  if (teamErr) return { error: teamErr };
 
   const isOwner =
     String(task.assigneeId) === me.id ||
@@ -203,6 +227,8 @@ export async function updateTask(_prev, formData) {
   const { tasks } = await collections();
   const task = await tasks.findOne({ _id: oid(id) });
   if (!task) return { ok: false, error: "Task not found." };
+  const teamErr = await assertOwnTeam(actor, task);
+  if (teamErr) return { ok: false, error: teamErr };
 
   const schema = z.object({
     title: z.string().min(2).max(200),
@@ -220,10 +246,6 @@ export async function updateTask(_prev, formData) {
   let newCollaborators = null;
   if (formData.has("collaboratorIds")) {
     const ids = formData.getAll("collaboratorIds").map(String).filter(Boolean);
-    const ownTeams = await actorOwnTeamIds(actor);
-    if (ownTeams && task.teamId && !ownTeams.includes(String(task.teamId))) {
-      return { ok: false, error: "You can only change collaborators for your own team's tasks." };
-    }
     const allowedMembers = await teamMemberIds(task.teamId);
     if (allowedMembers.length) {
       const allowed = new Set(allowedMembers);
@@ -271,6 +293,8 @@ export async function scheduleTask(_prev, formData) {
   const { tasks } = await collections();
   const task = await tasks.findOne({ _id: oid(id) });
   if (!task) return { ok: false, error: "Task not found." };
+  const teamErr = await assertOwnTeam(actor, task);
+  if (teamErr) return { ok: false, error: teamErr };
 
   await tasks.updateOne(
     { _id: task._id },
@@ -348,6 +372,8 @@ export async function setTaskClientVisible(_prev, formData) {
   const { tasks } = await collections();
   const task = await tasks.findOne({ _id: oid(id) });
   if (!task) return { ok: false, error: "Task not found." };
+  const teamErr = await assertOwnTeam(actor, task);
+  if (teamErr) return { ok: false, error: teamErr };
   await tasks.updateOne({ _id: task._id }, { $set: { clientVisible, updatedAt: new Date() } });
   await writeAudit({
     actorId: actor.id,
@@ -924,6 +950,8 @@ export async function deleteTask(_prev, formData) {
   const { tasks } = await collections();
   const task = await tasks.findOne({ _id: oid(id) });
   if (!task) return { ok: false, error: "Task not found." };
+  const teamErr = await assertOwnTeam(actor, task);
+  if (teamErr) return { ok: false, error: teamErr };
   await tasks.deleteOne({ _id: task._id });
   await writeAudit({ actorId: actor.id, action: "task.delete", targetType: "task", targetId: task._id, meta: { title: task.title } });
   bump(["/tasks", `/projects/${task.projectId}`, "/analytics"]);

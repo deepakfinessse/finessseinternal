@@ -30,7 +30,7 @@ export default async function AppLayout({ children }) {
     {
       label: "Delivery",
       items: [
-        { href: "/dashboard", label: "Pulse", icon: "pulse" },
+        { href: "/dashboard", label: "Overview", icon: "pulse" },
         canTasks && { href: "/tasks", label: "Task Board", icon: "board" },
         canTasks && { href: "/timeline", label: "Timeline", icon: "timeline" },
         can("analytics:read") && { href: "/heatmap", label: "Heatmap", icon: "heatmap" },
