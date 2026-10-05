@@ -117,9 +117,12 @@ export default async function AssigneeProfilePage({ params }) {
             <Card title="Recent activity">
               <ul className="flex flex-col divide-y divide-gray/15 text-sm">
                 {audit.map((a) => (
-                  <li key={String(a._id)} className="flex justify-between py-2">
-                    <span>{a.action}</span>
-                    <span className="text-xs text-gray">{relTime(a.createdAt)}</span>
+                  <li key={String(a._id)} className="flex items-center justify-between gap-3 py-2">
+                    <span className="min-w-0">
+                      {a.action}
+                      <span className="ml-2 truncate text-xs text-gray">by {a.actorName}</span>
+                    </span>
+                    <span className="shrink-0 text-xs text-gray">{relTime(a.createdAt)}</span>
                   </li>
                 ))}
               </ul>

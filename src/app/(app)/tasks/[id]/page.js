@@ -28,6 +28,50 @@ import {
 
 export const metadata = { title: "Task · Finessse" };
 
+const ACTIVITY_LABEL = {
+  "task.create": "Created",
+  "task.update": "Edited details",
+  "task.schedule": "Rescheduled",
+  "task.assign": "Reassigned",
+  "task.visibility": "Changed visibility",
+  "task.update.add": "Posted an update",
+  "task.update.remove": "Removed an update",
+  "task.transition": "Moved",
+  "task.blocker.raise": "Raised a blocker",
+  "task.blocker.resolve": "Resolved the blocker",
+  "task.approval.request": "Requested approval",
+  "task.approve": "Approved",
+  "task.reject": "Requested revisions",
+  "task.reopen": "Reopened",
+  "task.delete": "Deleted",
+};
+
+/** The specific from → to (or similar) behind a logged action, when there is one. */
+function activityDetail(a) {
+  const m = a.meta || {};
+  const label = (k) => STATUS_LABEL[k] || k;
+  switch (a.action) {
+    case "task.transition":
+      return m.from && m.to ? `${label(m.from)} → ${label(m.to)}` : null;
+    case "task.blocker.resolve":
+      return m.resumedAt ? `Back to ${label(m.resumedAt)}` : null;
+    case "task.reopen":
+      return m.to ? `→ ${label(m.to)}` : null;
+    case "task.blocker.raise":
+      return m.kind ? (m.kind === "client_side" ? "Client-side" : "Internal") : null;
+    case "task.approve":
+      return m.onTime === false ? "Late" : m.onTime === true ? "On time" : null;
+    case "task.visibility":
+      return m.clientVisible ? "Now client-visible" : "Now internal-only";
+    case "task.schedule":
+      return m.endDate ? `Due ${m.endDate}` : null;
+    case "task.reject":
+      return m.note || null;
+    default:
+      return null;
+  }
+}
+
 function TimeVsEstimate({ estimateMinutes, loggedHours, hasLogs }) {
   const actualMinutes = Math.round(loggedHours * 60);
   const diff = estimateMinutes && hasLogs ? actualMinutes - estimateMinutes : null;
@@ -213,12 +257,21 @@ export default async function TaskDetailPage({ params }) {
                 <p className="text-sm text-gray">No recorded activity.</p>
               ) : (
                 <ul className="flex flex-col divide-y divide-gray/15 text-sm">
-                  {activity.map((a) => (
-                    <li key={String(a._id)} className="flex justify-between py-1.5">
-                      <span><code className="text-xs">{a.action}</code></span>
-                      <span className="text-xs text-gray">{relTime(a.createdAt)}</span>
-                    </li>
-                  ))}
+                  {activity.map((a) => {
+                    const detail = activityDetail(a);
+                    return (
+                      <li key={String(a._id)} className="flex items-start justify-between gap-3 py-2">
+                        <div className="min-w-0">
+                          <div className="font-medium">
+                            {ACTIVITY_LABEL[a.action] || a.action}
+                            {detail && <span className="ml-1.5 font-normal text-dim">{detail}</span>}
+                          </div>
+                          <div className="text-xs text-gray">{a.actorName}</div>
+                        </div>
+                        <span className="shrink-0 text-xs text-gray">{relTime(a.createdAt)}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               </div>
