@@ -30,6 +30,17 @@ async function teamMemberIds(teamId) {
   return (team?.memberIds || []).map(String);
 }
 
+/** A project's name, for stamping into notifications so a task title alone
+ *  (often ambiguous across projects) isn't the only context the reader gets. */
+async function projectNameFor(projectId) {
+  const { projects } = await collections();
+  const p = await projects.findOne({ _id: oid(projectId) }, { projection: { name: 1 } });
+  return p?.name || "";
+}
+
+/** Joins a project name with an optional extra detail for a notification body. */
+const withProject = (projectName, detail) => (detail ? `${projectName} · ${detail}` : projectName);
+
 /**
  * `null` for holders of `task:assign:all` (admin/super-admin) — unrestricted.
  * Otherwise the ids of every team the actor themselves belongs to: a manager
@@ -84,7 +95,8 @@ async function loadActableTask(taskId, { need = "task:transition" } = {}) {
   if (!privileged && !(isOwner && me.can("task:transition"))) {
     return { error: "You can only act on tasks assigned to you." };
   }
-  return { me, task, tasks, isOwner, privileged };
+  const projectName = await projectNameFor(task.projectId);
+  return { me, task, tasks, isOwner, privileged, projectName };
 }
 
 /** Notes and attachments: open to an admin (task:update) or the task's
@@ -268,7 +280,7 @@ export async function updateTask(_prev, formData) {
         actorId: actor.id,
         type: "task.collaborator_added",
         title: `You're now collaborating on: ${patch.title}`,
-        body: "",
+        body: await projectNameFor(task.projectId),
         link: `/tasks/${id}`,
       });
     }
@@ -358,6 +370,7 @@ export async function assignTask(_prev, formData) {
       actorId: actor.id,
       type: "task.assigned",
       title: `You were assigned: ${task.title}`,
+      body: await projectNameFor(task.projectId),
       link: `/tasks/${id}`,
     });
   }
@@ -508,15 +521,16 @@ export async function transitionTask(_prev, formData) {
  */
 export async function submitForReview(_prev, formData) {
   const id = String(formData.get("id") || "");
-  const hours = Number(String(formData.get("hours") || "").trim());
+  const spentMinutes = readDuration(formData, "spent");
   const note = String(formData.get("note") || "").trim();
-  if (!Number.isFinite(hours) || hours <= 0 || hours > 24) {
-    return { ok: false, error: "Enter the hours you spent (0–24)." };
-  }
+  if (spentMinutes === null) return { ok: false, error: "Enter a valid time (minutes 0–59)." };
+  if (spentMinutes <= 0) return { ok: false, error: "Enter the time you spent." };
+  if (spentMinutes > 24 * 60) return { ok: false, error: "Enter the hours you spent (24h or fewer)." };
+  const hours = +(spentMinutes / 60).toFixed(2);
 
   const ctx = await loadActableTask(id);
   if (ctx.error) return { ok: false, error: ctx.error };
-  const { me, task, tasks } = ctx;
+  const { me, task, tasks, projectName } = ctx;
   if (task.status !== "in_progress") {
     return { ok: false, error: "Only an in-progress task can be submitted for review." };
   }
@@ -536,13 +550,15 @@ export async function submitForReview(_prev, formData) {
     targetId: task._id,
     meta: { from: "in_progress", to: "in_review", hours },
   });
-  // Ready for review — loop in whoever can approve it (managers/admins).
+  // Ready for review — loop in whoever can approve it (managers/admins),
+  // scoped to the task's own team so other teams' managers aren't pinged.
   await notifyByPermission({
     permission: "task:approve",
+    teamId: task.teamId,
     actorId: me.id,
     type: "task.review_requested",
     title: `Ready for review: ${task.title}`,
-    body: note,
+    body: withProject(projectName, note),
     link: `/tasks/${id}`,
   });
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
@@ -553,7 +569,7 @@ export async function raiseBlocker(_prev, formData) {
   const id = String(formData.get("id") || "");
   const ctx = await loadActableTask(id);
   if (ctx.error) return { ok: false, error: ctx.error };
-  const { me, task, tasks } = ctx;
+  const { me, task, tasks, projectName } = ctx;
 
   if (task.status === "blocked") return { ok: false, error: "Already blocked." };
   if (task.status === "completed") return { ok: false, error: "Task is completed." };
@@ -605,17 +621,18 @@ export async function raiseBlocker(_prev, formData) {
     actorId: me.id,
     type: "task.blocked",
     title: `Blocked: ${task.title}`,
-    body: parsed.data.description,
+    body: withProject(projectName, parsed.data.description),
     link: `/tasks/${id}`,
   });
   // Blockers need someone who can unblock or approve around it — loop in
-  // managers/admins (task:approve holders), not just the task's own people.
+  // managers/admins (task:approve holders) on the task's own team.
   await notifyByPermission({
     permission: "task:approve",
+    teamId: task.teamId,
     actorId: me.id,
     type: "task.blocked",
     title: `Blocked: ${task.title}`,
-    body: parsed.data.description,
+    body: withProject(projectName, parsed.data.description),
     link: `/tasks/${id}`,
   });
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
@@ -648,7 +665,7 @@ export async function resolveBlocker(_prev, formData) {
   const note = String(formData.get("note") || "").trim() || "Blocker resolved";
   const ctx = await loadActableTask(id);
   if (ctx.error) return { ok: false, error: ctx.error };
-  const { me, task, tasks } = ctx;
+  const { me, task, tasks, projectName } = ctx;
   if (task.status !== "blocked") return { ok: false, error: "Task is not blocked." };
 
   const back = task.statusBeforeBlock || "in_progress";
@@ -687,6 +704,7 @@ export async function resolveBlocker(_prev, formData) {
     actorId: me.id,
     type: "task.unblocked",
     title: `Unblocked: ${task.title}`,
+    body: projectName,
     link: `/tasks/${id}`,
   });
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
@@ -699,7 +717,7 @@ export async function submitForApproval(_prev, formData) {
   const id = String(formData.get("id") || "");
   const ctx = await loadActableTask(id);
   if (ctx.error) return { ok: false, error: ctx.error };
-  const { me, task, tasks } = ctx;
+  const { me, task, tasks, projectName } = ctx;
   if (task.status !== "in_review") {
     return { ok: false, error: "Move the task to In Review before requesting approval." };
   }
@@ -710,9 +728,11 @@ export async function submitForApproval(_prev, formData) {
   await writeAudit({ actorId: me.id, action: "task.approval.request", targetType: "task", targetId: task._id, meta: {} });
   await notifyByPermission({
     permission: "task:approve",
+    teamId: task.teamId,
     actorId: me.id,
     type: "task.approval_requested",
     title: `Approval requested: ${task.title}`,
+    body: projectName,
     link: `/tasks/${id}`,
   });
   bump(["/tasks", `/tasks/${id}`, "/analytics"]);
@@ -723,7 +743,7 @@ export async function approveTask(_prev, formData) {
   const id = String(formData.get("id") || "");
   const ctx = await loadActableTask(id, { need: "task:approve" });
   if (ctx.error) return { ok: false, error: ctx.error };
-  const { me, task, tasks } = ctx;
+  const { me, task, tasks, projectName } = ctx;
   if (task.status === "completed") return { ok: false, error: "Already completed." };
 
   const now = new Date();
@@ -754,6 +774,7 @@ export async function approveTask(_prev, formData) {
       actorId: me.id,
       type: "task.approved",
       title: `Approved: ${task.title}`,
+      body: projectName,
       link: `/tasks/${id}`,
     });
   }
@@ -767,7 +788,7 @@ export async function rejectTask(_prev, formData) {
   if (!note) return { ok: false, error: "Add a note describing the revisions needed." };
   const ctx = await loadActableTask(id, { need: "task:approve" });
   if (ctx.error) return { ok: false, error: ctx.error };
-  const { me, task, tasks } = ctx;
+  const { me, task, tasks, projectName } = ctx;
 
   await tasks.updateOne(
     { _id: task._id },
@@ -794,7 +815,7 @@ export async function rejectTask(_prev, formData) {
       actorId: me.id,
       type: "task.rejected",
       title: `Revisions requested: ${task.title}`,
-      body: note,
+      body: withProject(projectName, note),
       link: `/tasks/${id}`,
     });
   }
@@ -806,7 +827,7 @@ export async function reopenTask(_prev, formData) {
   const id = String(formData.get("id") || "");
   const ctx = await loadActableTask(id, { need: "task:approve" });
   if (ctx.error) return { ok: false, error: ctx.error };
-  const { me, task, tasks } = ctx;
+  const { me, task, tasks, projectName } = ctx;
   if (task.status !== "completed") return { ok: false, error: "Task is not completed." };
 
   await tasks.updateOne(
@@ -828,6 +849,7 @@ export async function reopenTask(_prev, formData) {
       actorId: me.id,
       type: "task.reopened",
       title: `Reopened: ${task.title}`,
+      body: projectName,
       link: `/tasks/${id}`,
     });
   }
@@ -846,7 +868,7 @@ export async function moveTask(_prev, formData) {
 
   const ctx = await loadActableTask(id);
   if (ctx.error) return { ok: false, error: ctx.error };
-  const { me, task, tasks, privileged } = ctx;
+  const { me, task, tasks, privileged, projectName } = ctx;
   const from = task.status;
   const now = new Date();
   if (from === to) return { ok: true };
@@ -870,7 +892,7 @@ export async function moveTask(_prev, formData) {
       actorId: me.id,
       type,
       title,
-      body,
+      body: withProject(projectName, body),
       link: `/tasks/${id}`,
     });
 
@@ -908,7 +930,7 @@ export async function moveTask(_prev, formData) {
     if (task.assigneeId) {
       await notifyUser({
         userId: task.assigneeId, actorId: me.id, type: "task.approved",
-        title: `Approved: ${task.title}`, link: `/tasks/${id}`,
+        title: `Approved: ${task.title}`, body: projectName, link: `/tasks/${id}`,
       });
     }
     return done("task.approve", { onTime: task.endDate ? now <= new Date(task.endDate) : true });
@@ -923,7 +945,7 @@ export async function moveTask(_prev, formData) {
     );
     if (task.assigneeId) {
       await notifyUser({
-        userId: task.assigneeId, actorId: me.id, type: "task.reopened",
+        userId: task.assigneeId, actorId: me.id, type: "task.reopened", body: projectName,
         title: `Reopened: ${task.title}`, link: `/tasks/${id}`,
       });
     }

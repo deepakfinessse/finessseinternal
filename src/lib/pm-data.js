@@ -422,15 +422,18 @@ export async function taskStats(user) {
 
 /* ----------------------------------------------------------------- analytics */
 
-export async function analyticsOverview() {
+export async function analyticsOverview(user) {
   const { tasks, projects } = await collections();
   const now = new Date();
+  const scope = await taskScopeFilter(user);
+  const pScope = await projectScopeFilter(user);
 
   const [byStatus, byTeam, byPriority, totals] = await Promise.all([
-    tasks.aggregate([{ $group: { _id: "$status", n: { $sum: 1 } } }]).toArray(),
-    tasks.aggregate([{ $group: { _id: "$teamId", n: { $sum: 1 } } }]).toArray(),
-    tasks.aggregate([{ $group: { _id: "$priority", n: { $sum: 1 } } }]).toArray(),
+    tasks.aggregate([{ $match: scope }, { $group: { _id: "$status", n: { $sum: 1 } } }]).toArray(),
+    tasks.aggregate([{ $match: scope }, { $group: { _id: "$teamId", n: { $sum: 1 } } }]).toArray(),
+    tasks.aggregate([{ $match: scope }, { $group: { _id: "$priority", n: { $sum: 1 } } }]).toArray(),
     tasks.aggregate([
+      { $match: scope },
       {
         $group: {
           _id: null,
@@ -442,9 +445,9 @@ export async function analyticsOverview() {
     ]).toArray(),
   ]);
 
-  const overdue = await tasks.countDocuments({ status: { $ne: "completed" }, endDate: { $lt: now } });
-  const awaitingApproval = await tasks.countDocuments({ approval: "pending" });
-  const activeProjects = await projects.countDocuments({ status: { $in: ["onboarding", "active"] } });
+  const overdue = await tasks.countDocuments({ ...scope, status: { $ne: "completed" }, endDate: { $lt: now } });
+  const awaitingApproval = await tasks.countDocuments({ ...scope, approval: "pending" });
+  const activeProjects = await projects.countDocuments({ ...pScope, status: { $in: ["onboarding", "active"] } });
 
   const t = totals[0] || { total: 0, completed: 0, blocked: 0 };
   return {
@@ -461,12 +464,13 @@ export async function analyticsOverview() {
   };
 }
 
-/** Per-assignee rollup — the "Global Assignee Task View". */
-export async function globalAssigneeView() {
+/** Per-assignee rollup — the "Global Assignee Task View" (team-scoped for Managers). */
+export async function globalAssigneeView(user) {
   const { tasks, users } = await collections();
+  const scope = await taskScopeFilter(user);
   const rows = await tasks
     .aggregate([
-      { $match: { assigneeId: { $ne: null } } },
+      { $match: { ...scope, assigneeId: { $ne: null } } },
       {
         $group: {
           _id: "$assigneeId",
@@ -507,10 +511,11 @@ export async function globalAssigneeView() {
 }
 
 /** Tasks with an end date inside [from, to] for the calendar / timeline. */
-export async function calendarTasks({ from, to }) {
+export async function calendarTasks({ from, to, user }) {
   const { tasks, projects } = await collections();
+  const scope = await taskScopeFilter(user);
   const docs = await tasks
-    .find({ endDate: { $gte: new Date(from), $lte: new Date(to) } })
+    .find({ ...scope, endDate: { $gte: new Date(from), $lte: new Date(to) } })
     .sort({ endDate: 1 })
     .toArray();
   const [userMap, projDocs, tmap] = await Promise.all([
@@ -522,15 +527,16 @@ export async function calendarTasks({ from, to }) {
   return docs.map((t) => serializeTask(t, { project: projMap.get(String(t.projectId)), users: userMap, tmap }));
 }
 
-/** team × status matrix for the overdue / status heatmap. */
-export async function statusHeatmap() {
+/** team × status matrix for the overdue / status heatmap (team-scoped for Managers). */
+export async function statusHeatmap(user) {
   const { tasks } = await collections();
+  const scope = await taskScopeFilter(user);
   const rows = await tasks
-    .aggregate([{ $group: { _id: { d: "$teamId", s: "$status" }, n: { $sum: 1 } } }])
+    .aggregate([{ $match: scope }, { $group: { _id: { d: "$teamId", s: "$status" }, n: { $sum: 1 } } }])
     .toArray();
   const overdueRows = await tasks
     .aggregate([
-      { $match: { status: { $ne: "completed" }, endDate: { $lt: new Date() } } },
+      { $match: { ...scope, status: { $ne: "completed" }, endDate: { $lt: new Date() } } },
       { $group: { _id: "$teamId", n: { $sum: 1 } } },
     ])
     .toArray();
@@ -548,16 +554,17 @@ export async function statusHeatmap() {
   return matrix;
 }
 
-/** Monthly on-time vs overdue completion history (SLA report). */
-export async function slaReport({ months = 6 } = {}) {
+/** Monthly on-time vs overdue completion history (SLA report; team-scoped for Managers). */
+export async function slaReport({ months = 6, user } = {}) {
   const { tasks } = await collections();
   const since = new Date();
   since.setMonth(since.getMonth() - (months - 1), 1);
   since.setHours(0, 0, 0, 0);
+  const scope = await taskScopeFilter(user);
 
   const rows = await tasks
     .aggregate([
-      { $match: { status: "completed", completedAt: { $gte: since } } },
+      { $match: { ...scope, status: "completed", completedAt: { $gte: since } } },
       {
         $project: {
           ym: { $dateToString: { format: "%Y-%m", date: "$completedAt" } },
@@ -597,14 +604,15 @@ export async function slaReport({ months = 6 } = {}) {
 
 const DAY_MS = 86400000;
 
-/** Headline delivery metrics across all completed work. */
-export async function deliverySla() {
+/** Headline delivery metrics across completed work (team-scoped for Managers). */
+export async function deliverySla(user) {
   const { tasks } = await collections();
   const fourWeeksAgo = new Date(Date.now() - 28 * DAY_MS);
+  const scope = await taskScopeFilter(user);
 
   const [agg] = await tasks
     .aggregate([
-      { $match: { status: "completed", completedAt: { $ne: null } } },
+      { $match: { ...scope, status: "completed", completedAt: { $ne: null } } },
       {
         $project: {
           onTime: {
@@ -664,15 +672,17 @@ export async function deliverySla() {
  * Cumulative time-in-system by team over the last 90 days — the "where the
  * time actually goes" view. Active tasks count from creation to now; completed
  * tasks count their full cycle time if they closed inside the window.
+ * Team-scoped for Managers.
  */
-export async function teamLoad() {
+export async function teamLoad(user) {
   const { tasks } = await collections();
   const now = Date.now();
   const since = now - 90 * DAY_MS;
+  const scope = await taskScopeFilter(user);
 
   const [docs, tmap] = await Promise.all([
     tasks
-      .find({}, { projection: { teamId: 1, status: 1, createdAt: 1, completedAt: 1, endDate: 1 } })
+      .find(scope, { projection: { teamId: 1, status: 1, createdAt: 1, completedAt: 1, endDate: 1 } })
       .toArray(),
     teamsMap(),
   ]);
@@ -703,18 +713,19 @@ export async function teamLoad() {
     .sort((a, b) => b.hours - a.hours);
 }
 
-/** Per-assignee six-month completion scorecard with a monthly on-time trend. */
-export async function assigneeScorecard({ months = 6 } = {}) {
+/** Per-assignee six-month completion scorecard with a monthly on-time trend (team-scoped for Managers). */
+export async function assigneeScorecard({ months = 6, user } = {}) {
   const { tasks, users } = await collections();
   const since = new Date();
   since.setMonth(since.getMonth() - (months - 1), 1);
   since.setHours(0, 0, 0, 0);
+  const scope = await taskScopeFilter(user);
 
   const lateExpr = { $and: [{ $ne: ["$endDate", null] }, { $gt: ["$completedAt", "$endDate"] }] };
 
   const completedRows = await tasks
     .aggregate([
-      { $match: { status: "completed", completedAt: { $gte: since }, assigneeId: { $ne: null } } },
+      { $match: { ...scope, status: "completed", completedAt: { $gte: since }, assigneeId: { $ne: null } } },
       {
         $project: {
           assigneeId: 1,
@@ -746,7 +757,7 @@ export async function assigneeScorecard({ months = 6 } = {}) {
 
   const activeRows = await tasks
     .aggregate([
-      { $match: { status: { $ne: "completed" }, assigneeId: { $ne: null } } },
+      { $match: { ...scope, status: { $ne: "completed" }, assigneeId: { $ne: null } } },
       { $group: { _id: "$assigneeId", n: { $sum: 1 }, teams: { $addToSet: "$teamId" } } },
     ])
     .toArray();
@@ -830,14 +841,16 @@ function annotate(t) {
 /**
  * One stand-up per active assignee, composed from their live task state:
  * MOVED (just completed) / TODAY (in flight) / BLOCKED / NEEDS A DECISION (overdue).
+ * Team-scoped for Managers.
  */
-export async function assigneeStandups() {
+export async function assigneeStandups(user) {
   const { tasks, users } = await collections();
   const now = new Date();
   const movedSince = new Date(Date.now() - 3 * 86400000);
   const today = shortDate(now);
+  const scope = await taskScopeFilter(user);
 
-  const docs = await tasks.find({ assigneeId: { $ne: null } }).toArray();
+  const docs = await tasks.find({ ...scope, assigneeId: { $ne: null } }).toArray();
   const byA = new Map();
   for (const t of docs) {
     const k = String(t.assigneeId);
@@ -894,10 +907,11 @@ export async function assigneeStandups() {
 
 /**
  * One client-facing status update per project — a copy-ready summary of what
- * shipped, what's in flight, and what needs the client.
+ * shipped, what's in flight, and what needs the client. Scoped to the
+ * projects the viewer can see (own team for a Manager).
  */
-export async function clientStatusUpdates() {
-  const projs = await listProjects({});
+export async function clientStatusUpdates(user) {
+  const projs = await listProjects({ user });
   if (!projs.length) return [];
   const { tasks } = await collections();
   const now = new Date();

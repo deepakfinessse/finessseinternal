@@ -43,12 +43,12 @@ export default async function ReportsPage({ searchParams }) {
   const tab = TABS.some((t) => t.key === sp.tab) ? sp.tab : "sla";
 
   const [sla, scorecard, load, monthly, standups, clientUpdates] = await Promise.all([
-    tab === "sla" ? deliverySla() : null,
-    tab === "sla" ? assigneeScorecard({ months: 6 }) : null,
-    tab === "sla" ? teamLoad() : null,
-    tab === "history" ? slaReport({ months: 12 }) : null,
-    tab === "briefs" ? assigneeStandups() : null,
-    tab === "briefs" ? clientStatusUpdates() : null,
+    tab === "sla" ? deliverySla(user) : null,
+    tab === "sla" ? assigneeScorecard({ months: 6, user }) : null,
+    tab === "sla" ? teamLoad(user) : null,
+    tab === "history" ? slaReport({ months: 12, user }) : null,
+    tab === "briefs" ? assigneeStandups(user) : null,
+    tab === "briefs" ? clientStatusUpdates(user) : null,
   ]);
 
   const maxLoadHours = load ? Math.max(1, ...load.map((r) => r.hours)) : 1;

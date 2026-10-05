@@ -39,13 +39,15 @@ export default async function HeatmapPage({ searchParams }) {
     cookieValue: cookieStore.get(FILTER_COOKIE)?.value,
   });
 
-  const [tasks, people, projects, matrix, teams] = await Promise.all([
+  const [tasks, people, projects, matrix, allTeams] = await Promise.all([
     listTasks(user, filterListArgs(filters, user.id)),
     canSeeAll ? listUsers({ status: "active" }) : [],
     user.can("project:read") ? listProjectOptions({ user }) : [],
-    view === "matrix" ? statusHeatmap() : null,
+    view === "matrix" ? statusHeatmap(user) : null,
     listTeams(),
   ]);
+  // Manager: restrict the status-matrix rows to their own team(s).
+  const teams = canSeeAll ? allTeams : allTeams.filter((t) => t.memberIds.includes(user.id));
 
   // people to show as rows — those with tasks, fall back to active users
   const withTasks = new Map();

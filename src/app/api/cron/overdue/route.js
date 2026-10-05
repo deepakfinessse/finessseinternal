@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { ObjectId } from "mongodb";
 import { collections } from "@/lib/db";
-import { notifyUsers, usersByPermission } from "@/lib/notifications";
+import { notifyUsers, permissionHoldersByScope } from "@/lib/notifications";
 import { sendMail } from "@/lib/mail";
 import { baseUrl } from "@/lib/base-url";
 
@@ -13,10 +14,11 @@ function fmtDate(d) {
 
 /**
  * Finds tasks that just slipped past their due date and haven't been flagged
- * yet, and alerts the assignee plus everyone who can approve/manage work
- * (admins, managers) — both in-app and by email. `overdueNotifiedAt` makes
- * this idempotent across runs; it's cleared whenever a task is rescheduled or
- * reopened so a fresh miss gets a fresh alert.
+ * yet, and alerts the assignee plus everyone who can approve/manage work —
+ * admins/super-admins always, managers only for their own team — both in-app
+ * and by email. `overdueNotifiedAt` makes this idempotent across runs; it's
+ * cleared whenever a task is rescheduled or reopened so a fresh miss gets a
+ * fresh alert.
  */
 export async function GET(request) {
   const auth = request.headers.get("authorization");
@@ -24,7 +26,7 @@ export async function GET(request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { tasks, users, projects } = await collections();
+  const { tasks, users, projects, teams } = await collections();
   const now = new Date();
 
   const overdue = await tasks
@@ -35,16 +37,29 @@ export async function GET(request) {
     return NextResponse.json({ ok: true, checked: 0, notified: 0 });
   }
 
-  const [projectDocs, assigneeDocs, managers, origin] = await Promise.all([
+  const teamIds = [...new Set(overdue.map((t) => t.teamId).filter(Boolean).map(String))];
+
+  const [projectDocs, assigneeDocs, { unrestricted, scoped }, teamDocs, origin] = await Promise.all([
     projects.find({ _id: { $in: overdue.map((t) => t.projectId) } }).toArray(),
     users
       .find({ _id: { $in: overdue.map((t) => t.assigneeId).filter(Boolean) }, status: "active" })
       .toArray(),
-    usersByPermission("task:approve"),
+    permissionHoldersByScope("task:approve"),
+    teamIds.length
+      ? teams.find({ _id: { $in: teamIds.map((id) => new ObjectId(id)) } }, { projection: { memberIds: 1 } }).toArray()
+      : [],
     baseUrl(),
   ]);
   const projectMap = new Map(projectDocs.map((p) => [String(p._id), p]));
   const assigneeMap = new Map(assigneeDocs.map((u) => [String(u._id), u]));
+  // Per-team member sets, so a Manager (scoped) only surfaces for their own
+  // team's overdue tasks — admins/super-admins (unrestricted) always see all.
+  const teamMembersById = new Map(teamDocs.map((t) => [String(t._id), new Set((t.memberIds || []).map(String))]));
+  const managersForTeam = (teamId) => {
+    if (!teamId) return [...unrestricted, ...scoped];
+    const members = teamMembersById.get(String(teamId));
+    return [...unrestricted, ...(members ? scoped.filter((u) => members.has(String(u._id))) : [])];
+  };
 
   let notified = 0;
   for (const task of overdue) {
@@ -54,7 +69,7 @@ export async function GET(request) {
 
       const recipients = new Map();
       if (assignee) recipients.set(String(assignee._id), assignee);
-      for (const m of managers) recipients.set(String(m._id), m);
+      for (const m of managersForTeam(task.teamId)) recipients.set(String(m._id), m);
 
       if (recipients.size) {
         const link = `${origin}/tasks/${task._id}`;

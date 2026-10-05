@@ -12,7 +12,7 @@ export async function GET() {
     return new Response("Forbidden", { status: 403 });
   }
 
-  const rows = await assigneeScorecard({ months: 6 });
+  const rows = await assigneeScorecard({ months: 6, user });
   const header = [
     "Assignee",
     "Email",

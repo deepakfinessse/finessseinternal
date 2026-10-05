@@ -22,21 +22,26 @@ function startOfWeek(d) {
 }
 
 export default async function AnalyticsPage() {
-  await requirePermission("analytics:read");
+  const user = await requirePermission("analytics:read");
+  const canSeeAll = user.can("task:read:all") || user.can("*");
 
   const now = new Date();
   const from = startOfWeek(now);
   const to = new Date(from);
   to.setDate(to.getDate() + 7 * 6); // six weeks out
 
-  const [overview, assignees, calendar, heatmap, sla, teams] = await Promise.all([
-    analyticsOverview(),
-    globalAssigneeView(),
-    calendarTasks({ from, to }),
-    statusHeatmap(),
-    slaReport({ months: 6 }),
+  const [overview, assignees, calendar, heatmap, sla, allTeams] = await Promise.all([
+    analyticsOverview(user),
+    globalAssigneeView(user),
+    calendarTasks({ from, to, user }),
+    statusHeatmap(user),
+    slaReport({ months: 6, user }),
     listTeams(),
   ]);
+  // Manager: restrict the heatmap's team rows to their own team(s).
+  const teams = canSeeAll
+    ? allTeams
+    : allTeams.filter((t) => t.memberIds.includes(user.id));
 
   // group calendar tasks by ISO week
   const weeks = [];
@@ -64,7 +69,11 @@ export default async function AnalyticsPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-heading">Admin intelligence &amp; reporting</h1>
-        <p className="text-sm text-gray">Section 5 — the analytics engine over every project and task.</p>
+        <p className="text-sm text-gray">
+          {canSeeAll
+            ? "Section 5 — the analytics engine over every project and task."
+            : "Section 5 — the analytics engine over your team's projects and tasks."}
+        </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">

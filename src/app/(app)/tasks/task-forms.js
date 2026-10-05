@@ -30,35 +30,47 @@ function toDateInput(iso) {
   return iso ? new Date(iso).toISOString().slice(0, 10) : "";
 }
 
-/** Hours + minutes pair, read server-side by readDuration(). */
-function EstimateFields({ minutes, required = false, hint }) {
+/**
+ * Hours + minutes pair, read server-side by readDuration(formData, prefix).
+ * Used for both the task's estimate and (with prefix="spent") hours logged
+ * when submitting for review — same control, same input discipline.
+ */
+function EstimateFields({
+  minutes,
+  required = false,
+  hint,
+  prefix = "estimate",
+  label = "Estimated time",
+  autoFocus = false,
+}) {
   const h = minutes ? Math.floor(minutes / 60) : "";
   const m = minutes ? minutes % 60 : "";
   return (
-    <Field label="Estimated time" hint={hint}>
+    <Field label={label} hint={hint}>
       <div className="flex items-center gap-2">
         <input
           type="number"
-          name="estimateHours"
+          name={`${prefix}Hours`}
           min="0"
           max="999"
           step="1"
           defaultValue={h}
           placeholder="0"
-          aria-label="Estimated hours"
+          aria-label={`${label} — hours`}
           className={`${inputClass} w-20`}
           required={required}
+          autoFocus={autoFocus}
         />
         <span className="text-[12px] text-dim">h</span>
         <input
           type="number"
-          name="estimateMinutes"
+          name={`${prefix}Minutes`}
           min="0"
           max="59"
           step="1"
           defaultValue={m}
           placeholder="0"
-          aria-label="Estimated minutes"
+          aria-label={`${label} — minutes`}
           className={`${inputClass} w-20`}
         />
         <span className="text-[12px] text-dim">m</span>
@@ -523,18 +535,7 @@ function SubmitForReviewButton({ taskId, estimateMinutes }) {
               onDone={() => setOpen(false)}
               className="mt-4 flex flex-col gap-3"
             >
-              <Field label="Hours spent">
-                <input
-                  name="hours"
-                  type="number"
-                  min="0.25"
-                  max="24"
-                  step="0.25"
-                  className={inputClass}
-                  required
-                  autoFocus
-                />
-              </Field>
+              <EstimateFields prefix="spent" label="Hours spent" required autoFocus />
               <Field label="Note (optional)">
                 <input name="note" className={inputClass} placeholder="What did you work on?" />
               </Field>

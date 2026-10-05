@@ -296,7 +296,7 @@ export default async function TaskDetailPage({ params }) {
                       <li key={i}>
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-medium">{l.loggedBy?.name || l.loggedBy?.email || "Someone"}</span>
-                          <span className="mono text-[13px] font-semibold tabular-nums">{l.hours}h</span>
+                          <span className="mono text-[13px] font-semibold tabular-nums">{fmtDuration(Math.round(l.hours * 60))}</span>
                         </div>
                         <div className="text-xs text-gray">
                           {fmtDateTime(l.loggedAt)}

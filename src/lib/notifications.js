@@ -47,22 +47,54 @@ export async function notifyUsers({ userIds = [], actorId = null, ...rest }) {
   await Promise.all(unique.map((userId) => notifyUser({ userId, actorId, ...rest })));
 }
 
-/** Active users holding a given permission (e.g. "task:approve") — full docs,
- *  for callers that need more than an in-app ping (e.g. an email address). */
-export async function usersByPermission(permission) {
+/**
+ * Splits active holders of `permission` into those who should see anything
+ * regardless of team (holders of `task:read:all` / `*` — admins, super-admins)
+ * and the rest (e.g. Managers, whose grant is role-wide but who should only
+ * be looped in for their own team's work).
+ */
+export async function permissionHoldersByScope(permission) {
   const { users, roles } = await collections();
   const roleDocs = await roles.find({ permissions: { $exists: true } }).toArray();
-  const roleIds = roleDocs
-    .filter((r) => (r.permissions || []).some((g) => permissionMatches(g, permission)))
-    .map((r) => r._id);
-  if (!roleIds.length) return [];
-  return users.find({ roleIds: { $in: roleIds }, status: "active" }).toArray();
+  const matching = roleDocs.filter((r) => (r.permissions || []).some((g) => permissionMatches(g, permission)));
+  if (!matching.length) return { unrestricted: [], scoped: [] };
+  const unrestrictedRoleIds = new Set(
+    matching
+      .filter((r) => (r.permissions || []).some((g) => permissionMatches(g, "task:read:all")))
+      .map((r) => String(r._id)),
+  );
+  const holders = await users
+    .find({ roleIds: { $in: matching.map((r) => r._id) }, status: "active" })
+    .toArray();
+  const unrestricted = [];
+  const scoped = [];
+  for (const u of holders) {
+    const isUnrestricted = (u.roleIds || []).some((rid) => unrestrictedRoleIds.has(String(rid)));
+    (isUnrestricted ? unrestricted : scoped).push(u);
+  }
+  return { unrestricted, scoped };
 }
 
-/** Notify everyone holding a given permission (e.g. "task:approve"). */
-export async function notifyByPermission({ permission, actorId = null, ...rest }) {
+/**
+ * Active users holding a given permission (e.g. "task:approve") — full docs,
+ * for callers that need more than an in-app ping (e.g. an email address).
+ * With `teamId`, holders whose grant isn't team-read-all (i.e. Managers) are
+ * further limited to members of that team, so e.g. a blocker on an SEO task
+ * doesn't loop in a Web Development manager who has nothing to do with it.
+ */
+export async function usersByPermission(permission, { teamId } = {}) {
+  const { unrestricted, scoped } = await permissionHoldersByScope(permission);
+  if (!teamId || !scoped.length) return [...unrestricted, ...scoped];
+  const { teams } = await collections();
+  const teamDoc = await teams.findOne({ _id: oid(teamId) }, { projection: { memberIds: 1 } });
+  const memberSet = new Set((teamDoc?.memberIds || []).map(String));
+  return [...unrestricted, ...scoped.filter((u) => memberSet.has(String(u._id)))];
+}
+
+/** Notify everyone holding a given permission (e.g. "task:approve"), team-scoped — see `usersByPermission`. */
+export async function notifyByPermission({ permission, teamId, actorId = null, ...rest }) {
   try {
-    const holders = await usersByPermission(permission);
+    const holders = await usersByPermission(permission, { teamId });
     if (!holders.length) return;
     await notifyUsers({ userIds: holders.map((u) => u._id), actorId, ...rest });
   } catch (err) {
