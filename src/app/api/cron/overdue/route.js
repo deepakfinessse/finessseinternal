@@ -4,6 +4,7 @@ import { collections } from "@/lib/db";
 import { notifyUsers, permissionHoldersByScope } from "@/lib/notifications";
 import { sendMail } from "@/lib/mail";
 import { baseUrl } from "@/lib/base-url";
+import { overdueCutoff } from "@/lib/pm-constants";
 
 // Triggered by Vercel Cron (see vercel.json) — never rendered, always fresh.
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function GET(request) {
   const now = new Date();
 
   const overdue = await tasks
-    .find({ status: { $ne: "completed" }, endDate: { $lt: now }, overdueNotifiedAt: null })
+    .find({ status: { $ne: "completed" }, endDate: { $lt: overdueCutoff() }, overdueNotifiedAt: null })
     .toArray();
 
   if (!overdue.length) {

@@ -25,7 +25,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   // Self-hosted (non-Vercel): trust the deployment host. Lock this down with
   // AUTH_URL in production.
   trustHost: true,
-  session: { strategy: "database" },
+  // 48-hour idle timeout: every request within `updateAge` of the session's
+  // last renewal pushes its expiry another `maxAge` out, so an active user is
+  // never interrupted. Once 48h pass with no activity at all, the session
+  // stops getting renewed, expires, and they're signed out and have to sign
+  // in again.
+  session: { strategy: "database", maxAge: 48 * 60 * 60, updateAge: 60 * 60 },
   providers: [
     Google({
       authorization: {

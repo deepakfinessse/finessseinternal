@@ -68,10 +68,24 @@ export const BLOCKER_KINDS = [
   { key: "client_side", label: "Client-Side" },
 ];
 
+/** A due date is a calendar day (stored as that day's UTC midnight, from a
+ *  plain `<input type="date">`), not an instant — so a task is only overdue
+ *  once its whole due day has elapsed, not the moment the clock passes
+ *  midnight on the day it's due. */
+export const DAY_MS = 86400000;
+
 export function isOverdue(task) {
   if (!task?.endDate) return false;
   if (task.status === "completed") return false;
-  return new Date(task.endDate).getTime() < Date.now();
+  return new Date(task.endDate).getTime() + DAY_MS <= Date.now();
+}
+
+/** The cutoff to compare a stored `endDate` against for "is it overdue right
+ *  now" queries (including raw Mongo `{ endDate: { $lt: overdueCutoff() } }`
+ *  filters, which can't call `isOverdue` directly) — one full day earlier
+ *  than now, so a same-day due date never reads as overdue. */
+export function overdueCutoff() {
+  return new Date(Date.now() - DAY_MS);
 }
 
 /* task update thread */
@@ -119,7 +133,9 @@ export function today0() {
   return d;
 }
 
+/** Whole days past due, counting from the end of the due day (see `isOverdue`)
+ *  — 0 on the day it first becomes overdue, 1 the day after, and so on. */
 export function overdueDays(iso) {
   if (!iso) return 0;
-  return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 86400000));
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / DAY_MS) - 1);
 }

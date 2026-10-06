@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 import { collections } from "./db";
 import { rolesById } from "./data";
 import { teamsMap } from "./teams";
-import { isOverdue, overdueDays, PRIORITIES } from "./pm-constants";
+import { isOverdue, overdueDays, overdueCutoff, DAY_MS, PRIORITIES } from "./pm-constants";
 
 const oid = (id) => (id instanceof ObjectId ? id : new ObjectId(String(id)));
 const iso = (d) => (d ? new Date(d).toISOString() : null);
@@ -101,7 +101,7 @@ export async function listProjects({ user, status, team, teams, q } = {}) {
           $match: {
             projectId: { $in: ids },
             status: { $ne: "completed" },
-            endDate: { $lt: new Date() },
+            endDate: { $lt: overdueCutoff() },
           },
         },
         { $group: { _id: "$projectId", n: { $sum: 1 } } },
@@ -200,7 +200,7 @@ export async function getProject(user, id) {
   counts.overdue = await tasks.countDocuments({
     projectId: p._id,
     status: { $ne: "completed" },
-    endDate: { $lt: new Date() },
+    endDate: { $lt: overdueCutoff() },
   });
   const base = serializeProject(p, counts, await teamsMap());
   const [memberDocs, ownerDoc] = await Promise.all([
@@ -367,7 +367,7 @@ export async function listTasks(user, filters = {}) {
   const endDateRange = {};
   if (overdue) {
     query.status = { $ne: "completed" };
-    endDateRange.$lt = new Date();
+    endDateRange.$lt = overdueCutoff();
   }
   if (dueFrom) endDateRange.$gte = new Date(`${dueFrom}T00:00:00`);
   if (dueTo) endDateRange.$lte = new Date(`${dueTo}T23:59:59.999`);
@@ -415,7 +415,7 @@ export async function taskStats(user) {
     out[r._id] = r.n;
     out.total += r.n;
   }
-  out.overdue = await tasks.countDocuments({ ...scope, status: { $ne: "completed" }, endDate: { $lt: new Date() } });
+  out.overdue = await tasks.countDocuments({ ...scope, status: { $ne: "completed" }, endDate: { $lt: overdueCutoff() } });
   out.awaitingApproval = await tasks.countDocuments({ ...scope, approval: "pending" });
   return out;
 }
@@ -424,7 +424,6 @@ export async function taskStats(user) {
 
 export async function analyticsOverview(user) {
   const { tasks, projects } = await collections();
-  const now = new Date();
   const scope = await taskScopeFilter(user);
   const pScope = await projectScopeFilter(user);
 
@@ -445,7 +444,7 @@ export async function analyticsOverview(user) {
     ]).toArray(),
   ]);
 
-  const overdue = await tasks.countDocuments({ ...scope, status: { $ne: "completed" }, endDate: { $lt: now } });
+  const overdue = await tasks.countDocuments({ ...scope, status: { $ne: "completed" }, endDate: { $lt: overdueCutoff() } });
   const awaitingApproval = await tasks.countDocuments({ ...scope, approval: "pending" });
   const activeProjects = await projects.countDocuments({ ...pScope, status: { $in: ["onboarding", "active"] } });
 
@@ -483,7 +482,7 @@ export async function globalAssigneeView(user) {
           overdue: {
             $sum: {
               $cond: [
-                { $and: [{ $ne: ["$status", "completed"] }, { $lt: ["$endDate", new Date()] }] },
+                { $and: [{ $ne: ["$status", "completed"] }, { $lt: ["$endDate", overdueCutoff()] }] },
                 1,
                 0,
               ],
@@ -536,7 +535,7 @@ export async function statusHeatmap(user) {
     .toArray();
   const overdueRows = await tasks
     .aggregate([
-      { $match: { ...scope, status: { $ne: "completed" }, endDate: { $lt: new Date() } } },
+      { $match: { ...scope, status: { $ne: "completed" }, endDate: { $lt: overdueCutoff() } } },
       { $group: { _id: "$teamId", n: { $sum: 1 } } },
     ])
     .toArray();
@@ -601,8 +600,6 @@ export async function slaReport({ months = 6, user } = {}) {
 }
 
 /* ------------------------------------------------------- delivery SLA report */
-
-const DAY_MS = 86400000;
 
 /** Headline delivery metrics across completed work (team-scoped for Managers). */
 export async function deliverySla(user) {
@@ -700,7 +697,7 @@ export async function teamLoad(user) {
       if (t.endDate && done > +new Date(t.endDate)) row.late += 1;
     } else {
       row.hours += Math.max(0, (now - created) / 3600000);
-      if (t.endDate && +new Date(t.endDate) < now) {
+      if (t.endDate && +new Date(t.endDate) < now - DAY_MS) {
         row.overdue += 1;
         row.late += 1;
       }
@@ -831,9 +828,9 @@ function annotate(t) {
   const bits = [];
   const p = prioLabel(t.priority);
   if (p === "High" || p === "Critical") bits.push(p);
-  if (t.status !== "completed" && t.endDate && new Date(t.endDate) < new Date()) {
+  if (t.status !== "completed" && t.endDate && new Date(t.endDate) < overdueCutoff()) {
     const d = overdueDays(t.endDate);
-    bits.push(`${d} day${d === 1 ? "" : "s"} overdue`);
+    bits.push(d > 0 ? `${d} day${d === 1 ? "" : "s"} overdue` : "overdue");
   }
   return bits.length ? ` (${bits.join(", ")})` : "";
 }
@@ -882,7 +879,7 @@ export async function assigneeStandups(user) {
           `${t.title} — ${t.blocker?.kind === "client_side" ? "CLIENT" : "INTERNAL"}: ${t.blocker?.description || "no detail recorded"}`,
       );
     const decisions = list
-      .filter((t) => t.status !== "completed" && t.endDate && new Date(t.endDate) < now)
+      .filter((t) => t.status !== "completed" && t.endDate && new Date(t.endDate) < overdueCutoff())
       .sort((a, b) => new Date(a.endDate) - new Date(b.endDate))
       .map((t) => `${t.title} — ${overdueDays(t.endDate)} days past the due date`);
 
@@ -936,11 +933,9 @@ export async function clientStatusUpdates(user) {
     const inFlight = list
       .filter((t) => t.status === "in_progress")
       .map((t) => {
-        const late =
-          t.endDate && new Date(t.endDate) < now
-            ? ` — ${overdueDays(t.endDate)} days overdue`
-            : "";
-        return `${t.title}${late}`;
+        if (!t.endDate || new Date(t.endDate) >= overdueCutoff()) return t.title;
+        const d = overdueDays(t.endDate);
+        return `${t.title} — ${d > 0 ? `${d} days overdue` : "overdue"}`;
       });
     const review = [
       ...new Set(
