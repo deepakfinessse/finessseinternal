@@ -337,7 +337,7 @@ export async function listTasks(user, filters = {}) {
   const {
     projectId, projectIds,
     team, teams,
-    status,
+    status, statuses,
     assigneeId, assigneeIds,
     priorities,
     approval, overdue, blocked, dueFrom, dueTo, q,
@@ -352,15 +352,19 @@ export async function listTasks(user, filters = {}) {
   const projList = oidList(projectId, projectIds);
   const teamList = oidList(team, teams);
   const asgList = oidList(assigneeId, assigneeIds);
+  // "Blocked" is its own quick filter but is still just a status value, so it
+  // folds into the same status set as the status pills (open/in progress/…).
+  const statusSet = new Set(arr(status, statuses));
+  if (blocked) statusSet.add("blocked");
 
   const query = { ...(await taskScopeFilter(user)) };
   if (projList.length) query.projectId = { $in: projList };
   if (teamList.length) query.teamId = { $in: teamList };
   if (asgList.length) query.assigneeId = { $in: asgList };
   if (priorities?.length) query.priority = { $in: priorities };
-  if (status) query.status = status;
+  if (statusSet.size === 1) query.status = [...statusSet][0];
+  else if (statusSet.size > 1) query.status = { $in: [...statusSet] };
   if (approval) query.approval = approval;
-  if (blocked) query.status = "blocked";
 
   // Due-date range and "overdue" both constrain `endDate` — merge them into
   // one range instead of letting the later one clobber the earlier.

@@ -9,6 +9,13 @@ import {
   filterCount,
 } from "@/lib/task-filters";
 import { Icon } from "@/components/icons";
+import { STATUS_LABEL } from "@/lib/pm-constants";
+
+// const STATUS_OPTS = ["open", "in_progress", "in_review", "completed"].map((key) => ({
+  const STATUS_OPTS = ["completed"].map((key) => ({
+  key,
+  label: STATUS_LABEL[key],
+}));
 
 const PRIORITY_OPTS = [
   { key: "urgent", label: "Critical" },
@@ -127,7 +134,7 @@ export function DeliveryFilters({
   const clearAll = () =>
     persist({
       mine: false, overdue: false, blocked: false,
-      project: [], assignee: [], priority: [], team: [],
+      project: [], assignee: [], priority: [], team: [], status: [],
       from: "", to: "", q: "",
     });
   const clearDates = () => persist({ ...value, from: "", to: "" });
@@ -140,11 +147,14 @@ export function DeliveryFilters({
   const teamName = (id) => teams.find((t) => t.id === id)?.name || id;
   const prioName = (k) => PRIORITY_OPTS.find((p) => p.key === k)?.label || k;
 
+  const statusName = (k) => STATUS_OPTS.find((s) => s.key === k)?.label || k;
+
   const chips = [
     ...value.project.map((v) => ({ k: "project", v, label: projName(v) })),
     ...value.assignee.map((v) => ({ k: "assignee", v, label: personName(v) })),
     ...value.priority.map((v) => ({ k: "priority", v, label: prioName(v) })),
     ...value.team.map((v) => ({ k: "team", v, label: teamName(v) })),
+    ...value.status.map((v) => ({ k: "status", v, label: statusName(v) })),
   ];
   const dateChipLabel =
     value.from && value.to
@@ -164,6 +174,12 @@ export function DeliveryFilters({
         <Pill active={value.mine} onClick={() => toggleBool("mine")}>My work</Pill>
         <Pill active={value.overdue} onClick={() => toggleBool("overdue")}>Overdue</Pill>
         <Pill active={value.blocked} onClick={() => toggleBool("blocked")}>Blocked</Pill>
+        {/* <span className="mx-0.5 h-4 w-px bg-line" /> */}
+        {STATUS_OPTS.map((s) => (
+          <Pill key={s.key} active={value.status.includes(s.key)} onClick={() => toggleIn("status", s.key)}>
+            {s.label}
+          </Pill>
+        ))}
         {showSearch && (
           <form
             onSubmit={(e) => {
