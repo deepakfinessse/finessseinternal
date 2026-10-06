@@ -517,7 +517,9 @@ export async function transitionTask(_prev, formData) {
  * The only door from in_progress to in_review — requires logging the hours
  * spent, so managers/admins can see real time-on-task, not just lifecycle
  * dates. Each submission appends a log entry (a task may be rejected and
- * resubmitted more than once).
+ * resubmitted more than once). Submitting for review also puts the task
+ * straight into the admin-approval queue — the assignee shouldn't need a
+ * second, separate "request approval" click after already handing it over.
  */
 export async function submitForReview(_prev, formData) {
   const id = String(formData.get("id") || "");
@@ -539,7 +541,7 @@ export async function submitForReview(_prev, formData) {
   await tasks.updateOne(
     { _id: task._id },
     {
-      $set: { status: "in_review", approval: "none", updatedAt: now },
+      $set: { status: "in_review", approval: "pending", updatedAt: now },
       $push: { timeLogs: { hours, note, loggedBy: oid(me.id), loggedAt: now } },
     },
   );
@@ -712,32 +714,6 @@ export async function resolveBlocker(_prev, formData) {
 }
 
 /* --------------------------------------------------------- approval gateway */
-
-export async function submitForApproval(_prev, formData) {
-  const id = String(formData.get("id") || "");
-  const ctx = await loadActableTask(id);
-  if (ctx.error) return { ok: false, error: ctx.error };
-  const { me, task, tasks, projectName } = ctx;
-  if (task.status !== "in_review") {
-    return { ok: false, error: "Move the task to In Review before requesting approval." };
-  }
-  await tasks.updateOne(
-    { _id: task._id },
-    { $set: { approval: "pending", updatedAt: new Date() } },
-  );
-  await writeAudit({ actorId: me.id, action: "task.approval.request", targetType: "task", targetId: task._id, meta: {} });
-  await notifyByPermission({
-    permission: "task:approve",
-    teamId: task.teamId,
-    actorId: me.id,
-    type: "task.approval_requested",
-    title: `Approval requested: ${task.title}`,
-    body: projectName,
-    link: `/tasks/${id}`,
-  });
-  bump(["/tasks", `/tasks/${id}`, "/analytics"]);
-  return { ok: true };
-}
 
 export async function approveTask(_prev, formData) {
   const id = String(formData.get("id") || "");

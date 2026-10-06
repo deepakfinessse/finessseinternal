@@ -246,7 +246,7 @@ export function DeliveryFilters({
             ))}
           </Section>
 
-          <Section label="Due date">
+          <Section label="Date">
             <Pill active={false} onClick={() => persist({ ...value, from: datePreset("today")[0], to: datePreset("today")[1] })}>
               Today
             </Pill>

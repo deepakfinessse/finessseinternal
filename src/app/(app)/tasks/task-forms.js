@@ -19,7 +19,6 @@ import {
   raiseBlocker,
   appendBlockerNote,
   resolveBlocker,
-  submitForApproval,
   approveTask,
   rejectTask,
   reopenTask,
@@ -577,9 +576,6 @@ export function LifecycleControls({ task, canApprove }) {
 
       {s === "in_review" && (
         <div className="flex flex-wrap gap-2">
-          <ActionForm action={submitForApproval} hidden={{ id: task.id }}>
-            <SubmitButton>Request admin approval</SubmitButton>
-          </ActionForm>
           <ActionForm action={transitionTask} hidden={{ id: task.id, to: "in_progress" }}>
             <SubmitButton variant="ghost">Reopen for changes</SubmitButton>
           </ActionForm>
