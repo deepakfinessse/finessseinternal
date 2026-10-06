@@ -76,10 +76,6 @@ export function ProjectForm({ project, teams = [], owners = [] }) {
       </Field>
       <TeamPicker teams={teams} selected={project?.teamIds || []} />
       <OwnerPicker owners={owners} selected={project?.ownerId} />
-      {/* <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="clientVisible" defaultChecked={project?.clientVisible} />
-        Visible to client
-      </label> */}
       <SubmitButton>{editing ? "Save project" : "Onboard project"}</SubmitButton>
     </ActionForm>
   );

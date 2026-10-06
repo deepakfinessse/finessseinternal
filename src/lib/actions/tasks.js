@@ -133,7 +133,6 @@ const TaskInput = z.object({
   collaboratorIds: z.array(z.string()).optional().default([]),
   startDate: z.string().optional().default(""),
   endDate: z.string().optional().default(""),
-  clientVisible: z.boolean().optional().default(false),
 });
 
 export async function createTask(_prev, formData) {
@@ -148,7 +147,6 @@ export async function createTask(_prev, formData) {
     collaboratorIds: formData.getAll("collaboratorIds").map(String).filter(Boolean),
     startDate: formData.get("startDate") || "",
     endDate: formData.get("endDate") || "",
-    clientVisible: formData.get("clientVisible") === "on",
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input" };
@@ -195,7 +193,6 @@ export async function createTask(_prev, formData) {
     approval: "none",
     approvalNote: "",
     revisionCount: 0,
-    clientVisible: d.clientVisible,
     startDate: d.startDate ? new Date(d.startDate) : null,
     endDate: d.endDate ? new Date(d.endDate) : null,
     estimateMinutes,
@@ -375,27 +372,6 @@ export async function assignTask(_prev, formData) {
     });
   }
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
-  return { ok: true };
-}
-
-export async function setTaskClientVisible(_prev, formData) {
-  const actor = await assertPermission("task:update");
-  const id = String(formData.get("id") || "");
-  const clientVisible = formData.get("clientVisible") === "true" || formData.get("clientVisible") === "on";
-  const { tasks } = await collections();
-  const task = await tasks.findOne({ _id: oid(id) });
-  if (!task) return { ok: false, error: "Task not found." };
-  const teamErr = await assertOwnTeam(actor, task);
-  if (teamErr) return { ok: false, error: teamErr };
-  await tasks.updateOne({ _id: task._id }, { $set: { clientVisible, updatedAt: new Date() } });
-  await writeAudit({
-    actorId: actor.id,
-    action: "task.visibility",
-    targetType: "task",
-    targetId: task._id,
-    meta: { clientVisible },
-  });
-  bump(["/tasks", `/tasks/${id}`]);
   return { ok: true };
 }
 

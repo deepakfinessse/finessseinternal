@@ -6,7 +6,7 @@ import { listUsers } from "@/lib/data";
 import { getTeam, teamIdsForUser } from "@/lib/teams";
 import { listAudit } from "@/lib/audit";
 import { STATUS_LABEL, fmtDuration, taskXp } from "@/lib/pm-constants";
-import { Card, Badge, EmptyState, fmtDate, fmtDateTime, relTime } from "@/components/ui";
+import { Card, EmptyState, fmtDate, fmtDateTime, relTime } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import {
   TaskStatusBadge,
@@ -22,7 +22,6 @@ import {
   ScheduleForm,
   AssignForm,
   UpdateThread,
-  ClientVisibleToggle,
   DeleteTaskButton,
 } from "../task-forms";
 
@@ -148,9 +147,6 @@ export default async function TaskDetailPage({ params }) {
           <PriorityChip priority={task.priority} />
           <ApprovalChip approval={task.approval} />
           <OverdueTag show={task.overdue && task.status !== "completed"} iso={task.endDate} />
-          <Badge tone={task.clientVisible ? "accepted" : "neutral"}>
-            {task.clientVisible ? "client-visible" : "internal"}
-          </Badge>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-faint">
           <span className="inline-flex items-center gap-1.5">
@@ -344,9 +340,6 @@ export default async function TaskDetailPage({ params }) {
           {canEdit && (
             <Card title="Edit task">
               <TaskEditForm task={task} people={people} />
-              <div className="mt-3 border-t border-gray/15 pt-3">
-                <ClientVisibleToggle task={task} />
-              </div>
             </Card>
           )}
 

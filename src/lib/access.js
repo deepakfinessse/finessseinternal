@@ -63,7 +63,6 @@ export async function getCurrentUser() {
     phone: user.phone || "",
     dateOfBirth: user.dateOfBirth || "",
     settings: user.settings || {},
-    assignedVersion: user.assignedVersion || null,
     onboarding: {
       stepsCompleted: onboarding.stepsCompleted || [],
       completedAt: onboarding.completedAt

@@ -22,7 +22,6 @@ const ProjectInput = z.object({
   description: z.string().max(2000).optional().default(""),
   teamIds: z.array(z.string()).min(1, "Assign at least one team"),
   ownerId: z.string().optional().default(""),
-  clientVisible: z.boolean().optional().default(false),
 });
 
 async function assertKnownTeams(ids) {
@@ -114,14 +113,13 @@ export async function createProject(_prev, formData) {
     description: formData.get("description") || "",
     teamIds: formData.getAll("teamIds").map(String),
     ownerId: formData.get("ownerId") || "",
-    clientVisible: formData.get("clientVisible") === "on",
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
   const teamErr = await assertKnownTeams(parsed.data.teamIds);
   if (teamErr) return { ok: false, error: teamErr };
-  const { name, client, description, teamIds, ownerId, clientVisible } = parsed.data;
+  const { name, client, description, teamIds, ownerId } = parsed.data;
 
   const [members, resolvedOwnerId] = await Promise.all([
     resolveTeamMembers(teamIds),
@@ -135,7 +133,6 @@ export async function createProject(_prev, formData) {
     client,
     description,
     teamIds: teamIds.map(oid),
-    clientVisible,
     projectNumber,
     taskSeq: 0,
     status: "onboarding",
@@ -168,14 +165,13 @@ export async function updateProject(_prev, formData) {
     description: formData.get("description") || "",
     teamIds: formData.getAll("teamIds").map(String),
     ownerId: formData.get("ownerId") || "",
-    clientVisible: formData.get("clientVisible") === "on",
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
   const teamErr = await assertKnownTeams(parsed.data.teamIds);
   if (teamErr) return { ok: false, error: teamErr };
-  const { name, client, description, teamIds, ownerId, clientVisible } = parsed.data;
+  const { name, client, description, teamIds, ownerId } = parsed.data;
 
   const { projects } = await collections();
   const p = await projects.findOne({ _id: oid(id) });
@@ -199,7 +195,6 @@ export async function updateProject(_prev, formData) {
         description,
         teamIds: teamIds.map(oid),
         ownerId: resolvedOwnerId,
-        clientVisible,
         updatedAt: new Date(),
       },
     },

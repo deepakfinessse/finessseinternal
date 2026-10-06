@@ -70,7 +70,6 @@ export default async function ProjectDetailPage({ params }) {
           <Badge tone={project.status === "active" ? "active" : project.status === "onboarding" ? "pending" : "neutral"}>
             {project.status}
           </Badge>
-          {project.clientVisible && <Badge tone="accepted">client-visible</Badge>}
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-faint">
           {project.client && <span>Client: {project.client}</span>}

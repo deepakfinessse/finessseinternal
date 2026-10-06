@@ -15,7 +15,6 @@ function serializeUser(u, rolesById) {
     dateOfBirth: u.dateOfBirth || "",
     reportingManagerId: u.reportingManagerId ? String(u.reportingManagerId) : null,
     settings: u.settings || {},
-    assignedVersion: u.assignedVersion || null,
     onboarding: u.onboarding || { stepsCompleted: [], completedAt: null },
     createdAt: (u.createdAt || u._id.getTimestamp()).toISOString(),
     roleIds: (u.roleIds || []).map(String),
@@ -198,28 +197,6 @@ export function describeUA(ua = "") {
     /Firefox\//.test(ua) ? "Firefox" :
     /Safari\//.test(ua) ? "Safari" : "browser";
   return `${browser} on ${os}`;
-}
-
-export async function listVersions() {
-  const { versions, users } = await collections();
-  const docs = await versions.find({}).sort({ releasedAt: -1, _id: -1 }).toArray();
-  const counts = await users
-    .aggregate([
-      { $match: { assignedVersion: { $ne: null } } },
-      { $group: { _id: "$assignedVersion", n: { $sum: 1 } } },
-    ])
-    .toArray();
-  const countMap = new Map(counts.map((c) => [c._id, c.n]));
-  return docs.map((v) => ({
-    id: String(v._id),
-    version: v.version,
-    channel: v.channel || "stable",
-    notes: v.notes || "",
-    isActive: !!v.isActive,
-    isDefault: !!v.isDefault,
-    assignedCount: countMap.get(v.version) || 0,
-    releasedAt: (v.releasedAt || v._id.getTimestamp()).toISOString(),
-  }));
 }
 
 export async function listAuditLog({ limit = 100 } = {}) {

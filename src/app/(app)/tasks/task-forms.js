@@ -13,7 +13,6 @@ import {
   assignTask,
   addTaskUpdate,
   removeTaskUpdate,
-  setTaskClientVisible,
   transitionTask,
   submitForReview,
   raiseBlocker,
@@ -194,11 +193,6 @@ export function CreateTaskForm({
           </select>
         </Field>
       </div>
-
-      {/* <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="clientVisible" />
-        Client-side visible (vs. internal only)
-      </label> */}
 
       <SubmitButton>Create task</SubmitButton>
     </ActionForm>
@@ -474,19 +468,6 @@ export function RemoveUpdateButton({ taskId, updateId }) {
   return (
     <ActionForm action={removeTaskUpdate} hidden={{ id: taskId, updateId }} className="inline">
       <RemoveSubmit />
-    </ActionForm>
-  );
-}
-
-export function ClientVisibleToggle({ task }) {
-  return (
-    <ActionForm
-      action={setTaskClientVisible}
-      hidden={{ id: task.id, clientVisible: String(!task.clientVisible) }}
-    >
-      <SubmitButton variant="ghost">
-        {task.clientVisible ? "Make internal-only" : "Make client-visible"}
-      </SubmitButton>
     </ActionForm>
   );
 }

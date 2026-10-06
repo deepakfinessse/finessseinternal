@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/access";
 import { listUsers, listRoles } from "@/lib/data";
+import { teamIdsForUser, listTeams } from "@/lib/teams";
 import { Card, Badge, LinkButton, EmptyState, fmtDate } from "@/components/ui";
 
 export const metadata = { title: "Assignees · Finessse" };
@@ -12,14 +13,28 @@ export default async function TeamPage({ searchParams }) {
   const sp = await searchParams;
   const status = STATUS_TABS.includes(sp.status) ? sp.status : "all";
   const q = (sp.q || "").trim();
+  // Admin/super-admin see the whole workspace; everyone else (Manager,
+  // Assignee, Collaborator) only sees their own team's roster.
+  const canSeeAll = user.can("task:read:all") || user.can("*");
 
-  const [people, roles, everyone] = await Promise.all([
+  const [allPeople, roles, everyone, myTeamIds, allTeams] = await Promise.all([
     listUsers({ status: status === "all" ? undefined : status, q: q || undefined }),
     listRoles(),
     listUsers({}),
+    canSeeAll ? null : teamIdsForUser(user.id),
+    canSeeAll ? null : listTeams(),
   ]);
   const roleName = (id) => roles.find((r) => r.id === id)?.name || "—";
   const nameById = new Map(everyone.map((u) => [u.id, u.name || u.email]));
+
+  let people = allPeople;
+  if (!canSeeAll) {
+    const memberIds = new Set(
+      allTeams.filter((t) => myTeamIds.includes(t.id)).flatMap((t) => t.memberIds),
+    );
+    memberIds.add(user.id);
+    people = allPeople.filter((p) => memberIds.has(p.id));
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,7 +42,7 @@ export default async function TeamPage({ searchParams }) {
         <div>
           <h1 className="text-2xl font-heading">Assignees</h1>
           <p className="text-sm text-gray">
-            Profiles, roles and operational status.
+            {canSeeAll ? "Profiles, roles and operational status." : "Your team's profiles, roles and operational status."}
           </p>
         </div>
         {user.can("assignee:invite") && (
@@ -74,7 +89,6 @@ export default async function TeamPage({ searchParams }) {
                   <th className="py-2 pr-3 font-semibold">Name</th>
                   <th className="py-2 pr-3 font-semibold">Roles</th>
                   <th className="py-2 pr-3 font-semibold">Reports to</th>
-                  <th className="py-2 pr-3 font-semibold">Version</th>
                   <th className="py-2 pr-3 font-semibold">Status</th>
                   <th className="py-2 pr-3 font-semibold">Joined</th>
                 </tr>
@@ -96,7 +110,6 @@ export default async function TeamPage({ searchParams }) {
                     <td className="py-2.5 pr-3 text-xs text-gray">
                       {p.reportingManagerId ? nameById.get(p.reportingManagerId) || "—" : "—"}
                     </td>
-                    <td className="py-2.5 pr-3 text-xs">{p.assignedVersion || "—"}</td>
                     <td className="py-2.5 pr-3">
                       <Badge tone={p.status}>{p.status}</Badge>
                     </td>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/access";
-import { countByStatus, listInvitations, listSessions, listVersions } from "@/lib/data";
+import { countByStatus, listInvitations, listSessions } from "@/lib/data";
 import { listTasks, taskStats } from "@/lib/pm-data";
 import { PageHeader, Card, Stat, LinkButton, Badge, relTime } from "@/components/ui";
 import { TaskStatusBadge, OverdueTag, TeamDot } from "@/components/pm-ui";
@@ -10,12 +10,14 @@ export const metadata = { title: "Pulse · Finessse" };
 export default async function DashboardPage() {
   const user = await requireUser();
   const canTasks = user.can("task:read") || user.can("task:read:all");
+  // Workspace-wide headcount and session visibility are admin/super-admin
+  // oversight cards — not relevant to a Manager's or Assignee's own dashboard.
+  const canSeeAll = user.can("task:read:all") || user.can("*");
 
-  const [counts, pending, sessions, versions, tStats, myTasks] = await Promise.all([
-    user.can("assignee:read") ? countByStatus() : null,
+  const [counts, pending, sessions, tStats, myTasks] = await Promise.all([
+    canSeeAll && user.can("assignee:read") ? countByStatus() : null,
     user.can("assignee:invite") ? listInvitations({ status: "pending" }) : [],
-    user.can("session:read") ? listSessions() : [],
-    user.can("version:read") ? listVersions() : [],
+    canSeeAll && user.can("session:read") ? listSessions() : [],
     canTasks ? taskStats(user) : null,
     canTasks ? listTasks(user, {}) : [],
   ]);
@@ -116,7 +118,7 @@ export default async function DashboardPage() {
           </Card>
         )}
 
-        {user.can("session:read") && (
+        {canSeeAll && user.can("session:read") && (
           <Card
             title="Active sessions"
             description={`${activeSessions.length} across the workspace`}
@@ -134,28 +136,6 @@ export default async function DashboardPage() {
               {activeSessions.length === 0 && (
                 <li className="py-2 text-[13px] text-dim">No active sessions.</li>
               )}
-            </ul>
-          </Card>
-        )}
-
-        {user.can("version:read") && versions.length > 0 && (
-          <Card
-            title="Release versions"
-            action={
-              user.can("version:manage") ? (
-                <LinkButton href="/settings/versions" variant="ghost">Manage →</LinkButton>
-              ) : null
-            }
-          >
-            <ul className="flex flex-col">
-              {versions.slice(0, 6).map((v) => (
-                <li key={v.id} className="flex items-center justify-between border-b border-line py-2 text-[13px] last:border-0">
-                  <span className="mono">
-                    {v.version} <span className="text-faint">· {v.channel}</span>
-                  </span>
-                  <span className="text-[12px] text-faint">{v.assignedCount} assigned</span>
-                </li>
-              ))}
             </ul>
           </Card>
         )}

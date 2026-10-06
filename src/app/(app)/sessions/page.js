@@ -1,36 +1,28 @@
 import { requirePermission } from "@/lib/access";
-import { listSessions, listVersions } from "@/lib/data";
+import { listSessions } from "@/lib/data";
 import { getCurrentSessionToken, APP_VERSION } from "@/lib/session-tracking";
-import { Card, Badge, Stat, EmptyState, LinkButton, relTime, fmtDateTime } from "@/components/ui";
+import { Card, Stat, EmptyState, relTime, fmtDateTime } from "@/components/ui";
 import { RevokeSessionButton } from "./revoke-button";
 
-export const metadata = { title: "Sessions & Versions · Finessse" };
+export const metadata = { title: "Sessions · Finessse" };
 
 export default async function SessionsPage() {
   const user = await requirePermission("session:read");
   const canRevoke = user.can("session:revoke");
 
-  const [sessions, versions, currentToken] = await Promise.all([
+  const [sessions, currentToken] = await Promise.all([
     listSessions(),
-    user.can("version:read") ? listVersions() : [],
     getCurrentSessionToken(),
   ]);
 
   const active = sessions.filter((s) => !s.expired);
   const uniqueUsers = new Set(active.map((s) => s.userId)).size;
-  const versionSpread = active.reduce((acc, s) => {
-    const v = s.appVersion || "unknown";
-    acc[v] = (acc[v] || 0) + 1;
-    return acc;
-  }, {});
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-heading">Sessions &amp; versions</h1>
-        <p className="text-sm text-gray">
-          Active user sessions, authorized devices, and allocated software release versions.
-        </p>
+        <h1 className="text-2xl font-heading">Sessions</h1>
+        <p className="text-sm text-gray">Active user sessions and authorized devices.</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -88,40 +80,6 @@ export default async function SessionsPage() {
           </div>
         )}
       </Card>
-
-      {user.can("version:read") && (
-        <Card
-          title="Release versions"
-          description="Allocated software releases and how many assignees are on each."
-          action={
-            user.can("version:manage") ? (
-              <LinkButton href="/settings/versions" variant="secondary">Manage versions</LinkButton>
-            ) : null
-          }
-        >
-          {versions.length === 0 ? (
-            <EmptyState title="No versions defined">
-              {user.can("version:manage") ? "Add one from Manage versions." : "Ask an admin to define release versions."}
-            </EmptyState>
-          ) : (
-            <ul className="flex flex-col divide-y divide-gray/15 text-sm">
-              {versions.map((v) => (
-                <li key={v.id} className="flex items-center justify-between py-2">
-                  <span>
-                    <span className="font-semibold">{v.version}</span>{" "}
-                    <span className="text-xs text-gray">{v.channel}</span>
-                    {v.isDefault && <Badge tone="active">default</Badge>}
-                    {!v.isActive && <Badge tone="neutral">inactive</Badge>}
-                  </span>
-                  <span className="text-xs text-gray">
-                    {v.assignedCount} assigned · live sessions: {versionSpread[v.version] || 0}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      )}
     </div>
   );
 }

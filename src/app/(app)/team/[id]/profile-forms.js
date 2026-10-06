@@ -4,7 +4,6 @@ import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Field, inputClass } from "@/components/ui";
 import { updateProfile, assignReportingManager, setUserStatus, deleteUser } from "@/lib/actions/team";
 import { assignRoles } from "@/lib/actions/roles";
-import { assignVersion } from "@/lib/actions/versions";
 
 export function ProfileEditForm({ person, canEdit }) {
   return (
@@ -97,36 +96,6 @@ export function RoleAssignForm({ person, roles, canAssign }) {
         ))}
         {canAssign && <SubmitButton>Update roles</SubmitButton>}
       </fieldset>
-    </ActionForm>
-  );
-}
-
-export function VersionAssignForm({ person, versions, canAssign }) {
-  return (
-    <ActionForm
-      action={assignVersion}
-      hidden={{ userId: person.id }}
-      successMessage="Version allocated."
-      className="flex items-end gap-2"
-    >
-      <Field label="Allocated release version">
-        <select
-          name="version"
-          defaultValue={person.assignedVersion || ""}
-          disabled={!canAssign}
-          className={inputClass}
-        >
-          <option value="">— none —</option>
-          {versions
-            .filter((v) => v.isActive || v.version === person.assignedVersion)
-            .map((v) => (
-              <option key={v.id} value={v.version}>
-                {v.version} ({v.channel})
-              </option>
-            ))}
-        </select>
-      </Field>
-      {canAssign && <SubmitButton variant="secondary">Allocate</SubmitButton>}
     </ActionForm>
   );
 }

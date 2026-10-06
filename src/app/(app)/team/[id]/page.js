@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission, getCurrentUser } from "@/lib/access";
-import { getUser, listUsers, listDirectReports, listRoles, listVersions, listSessions } from "@/lib/data";
+import { getUser, listUsers, listDirectReports, listRoles, listSessions } from "@/lib/data";
+import { teamIdsForUser } from "@/lib/teams";
 import { listAudit } from "@/lib/audit";
 import { Card, Badge, EmptyState, fmtDateTime, relTime } from "@/components/ui";
 import {
   ProfileEditForm,
   ReportingManagerForm,
   RoleAssignForm,
-  VersionAssignForm,
   StatusForm,
 } from "./profile-forms";
 
@@ -31,16 +31,25 @@ export default async function AssigneeProfilePage({ params }) {
   }
   if (!person) notFound();
 
+  // Same restriction as the directory list: a Manager/Assignee/Collaborator
+  // can only open profiles on their own team (or their own profile).
+  const canSeeAll = viewer.can("task:read:all") || viewer.can("*");
+  if (!canSeeAll && me.id !== person.id) {
+    const [myTeamIds, theirTeamIds] = await Promise.all([
+      teamIdsForUser(me.id),
+      teamIdsForUser(person.id),
+    ]);
+    if (!myTeamIds.some((t) => theirTeamIds.includes(t))) notFound();
+  }
+
   const canEdit = viewer.can("assignee:update") || me.id === person.id;
   const canAssignRoles = viewer.can("role:assign");
-  const canAssignVersion = viewer.can("version:assign");
   const canAssignManager = viewer.can("assignee:update");
   const canSuspend = viewer.can("assignee:suspend");
   const canDelete = viewer.can("assignee:delete");
 
-  const [roles, versions, sessions, audit, people, directReports, manager] = await Promise.all([
+  const [roles, sessions, audit, people, directReports, manager] = await Promise.all([
     listRoles(),
-    viewer.can("version:read") ? listVersions() : [],
     viewer.can("session:read") ? listSessions({ userId: id }) : [],
     viewer.can("audit:read") ? listAudit({ targetType: "user", targetId: id, limit: 20 }) : [],
     canAssignManager ? listUsers({ status: "active" }) : [],
@@ -71,11 +80,6 @@ export default async function AssigneeProfilePage({ params }) {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <Badge tone={person.status}>{person.status}</Badge>
-            {person.assignedVersion && (
-              <span className="rounded-full bg-gray/15 px-2 py-0.5 text-xs font-semibold">
-                v{person.assignedVersion}
-              </span>
-            )}
           </div>
         </div>
       </div>
@@ -165,16 +169,6 @@ export default async function AssigneeProfilePage({ params }) {
           <Card title="Roles" description="Grants effective permissions.">
             <RoleAssignForm person={person} roles={roles} canAssign={canAssignRoles} />
           </Card>
-
-          {viewer.can("version:read") && (
-            <Card title="Release version">
-              <VersionAssignForm
-                person={person}
-                versions={versions}
-                canAssign={canAssignVersion}
-              />
-            </Card>
-          )}
 
           <Card title="Operational status">
             <StatusForm person={person} canSuspend={canSuspend} canDelete={canDelete} />

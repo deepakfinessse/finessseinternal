@@ -32,10 +32,6 @@ export const PERMISSION_CATALOG = [
   { key: "session:read", group: "Sessions", description: "View active sessions and devices" },
   { key: "session:revoke", group: "Sessions", description: "Revoke sessions / sign out devices" },
 
-  { key: "version:read", group: "Versions", description: "View release versions" },
-  { key: "version:manage", group: "Versions", description: "Create and edit release versions" },
-  { key: "version:assign", group: "Versions", description: "Allocate a version to an assignee" },
-
   { key: "analytics:read", group: "Analytics", description: "Admin intelligence: global task view, timelines, heatmaps, SLA reports" },
 
   { key: "role:read", group: "Access control", description: "View roles and permissions" },
@@ -82,7 +78,6 @@ export const SYSTEM_ROLES = [
       "task:*",
       "analytics:read",
       "session:*",
-      "version:*",
       "role:read",
       "role:assign",
       "audit:read",
@@ -114,8 +109,6 @@ export const SYSTEM_ROLES = [
       "task:approve",
       "analytics:read",
       "session:read",
-      "version:read",
-      "version:assign",
       "attendance:track",
       "attendance:read:all",
     ],
@@ -132,7 +125,6 @@ export const SYSTEM_ROLES = [
       "task:read",
       "task:transition",
       "session:read",
-      "version:read",
       "attendance:track",
     ],
     priority: 10,
