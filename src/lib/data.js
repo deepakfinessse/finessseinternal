@@ -13,7 +13,6 @@ function serializeUser(u, rolesById) {
     title: u.title || "",
     phone: u.phone || "",
     dateOfBirth: u.dateOfBirth || "",
-    reportingManagerId: u.reportingManagerId ? String(u.reportingManagerId) : null,
     settings: u.settings || {},
     onboarding: u.onboarding || { stepsCompleted: [], completedAt: null },
     createdAt: (u.createdAt || u._id.getTimestamp()).toISOString(),
@@ -82,22 +81,6 @@ export async function getUser(id) {
   const map = await rolesById();
   const u = await users.findOne({ _id: oid(id) });
   return u ? serializeUser(u, map) : null;
-}
-
-/** Everyone who reports to a given person, directly. */
-export async function listDirectReports(managerId) {
-  const { users } = await collections();
-  const map = await rolesById();
-  const docs = await users.find({ reportingManagerId: oid(managerId) }).sort({ name: 1 }).toArray();
-  return docs.map((u) => serializeUser(u, map));
-}
-
-const OWNER_ROLE_KEYS = ["manager", "admin", "super-admin"];
-
-/** Active users eligible to own a project — managers and admins. */
-export async function listEligibleOwners() {
-  const all = await listUsers({ status: "active" });
-  return all.filter((u) => u.roles.some((r) => OWNER_ROLE_KEYS.includes(r.key)));
 }
 
 export async function countByStatus() {

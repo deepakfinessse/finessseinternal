@@ -34,22 +34,7 @@ function TeamPicker({ teams = [], selected = [] }) {
   );
 }
 
-function OwnerPicker({ owners = [], selected }) {
-  return (
-    <Field label="Owner" hint="A manager or admin. Defaults to you if left unset.">
-      <select name="ownerId" defaultValue={selected || ""} className={inputClass}>
-        <option value="">— me —</option>
-        {owners.map((u) => (
-          <option key={u.id} value={u.id}>
-            {u.name || u.email}
-          </option>
-        ))}
-      </select>
-    </Field>
-  );
-}
-
-export function ProjectForm({ project, teams = [], owners = [] }) {
+export function ProjectForm({ project, teams = [] }) {
   const editing = !!project;
   return (
     <ActionForm
@@ -75,7 +60,6 @@ export function ProjectForm({ project, teams = [], owners = [] }) {
         <textarea name="description" rows={3} defaultValue={project?.description || ""} className={inputClass} />
       </Field>
       <TeamPicker teams={teams} selected={project?.teamIds || []} />
-      <OwnerPicker owners={owners} selected={project?.ownerId} />
       <SubmitButton>{editing ? "Save project" : "Onboard project"}</SubmitButton>
     </ActionForm>
   );

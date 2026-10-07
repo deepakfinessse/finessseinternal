@@ -2,7 +2,7 @@
 
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Field, inputClass } from "@/components/ui";
-import { updateProfile, assignReportingManager, setUserStatus, deleteUser } from "@/lib/actions/team";
+import { updateProfile, setUserStatus, deleteUser } from "@/lib/actions/team";
 import { assignRoles } from "@/lib/actions/roles";
 
 export function ProfileEditForm({ person, canEdit }) {
@@ -40,34 +40,6 @@ export function ProfileEditForm({ person, canEdit }) {
   );
 }
 
-export function ReportingManagerForm({ person, people, canAssign }) {
-  const candidates = people.filter((p) => p.id !== person.id);
-  return (
-    <ActionForm
-      action={assignReportingManager}
-      hidden={{ userId: person.id }}
-      successMessage="Reporting manager updated."
-      className="flex items-end gap-2"
-    >
-      <Field label="Reports to">
-        <select
-          name="reportingManagerId"
-          defaultValue={person.reportingManagerId || ""}
-          disabled={!canAssign}
-          className={inputClass}
-        >
-          <option value="">— none —</option>
-          {candidates.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name || p.email}
-            </option>
-          ))}
-        </select>
-      </Field>
-      {canAssign && <SubmitButton variant="secondary">Save</SubmitButton>}
-    </ActionForm>
-  );
-}
 
 export function RoleAssignForm({ person, roles, canAssign }) {
   return (

@@ -23,6 +23,7 @@ export default async function AppLayout({ children }) {
 
   const can = (k) => user.can(k);
   const canTasks = can("task:read") || can("task:read:all");
+  const canSeeAll = can("task:read:all") || can("*");
   const [stats, chatUnread] = await Promise.all([
     canTasks ? taskStats(user) : null,
     unreadChatCount(user.id),
@@ -32,7 +33,9 @@ export default async function AppLayout({ children }) {
     {
       label: "Delivery",
       items: [
-        { href: "/dashboard", label: "Overview", icon: "pulse" },
+        // Admin/super-admin only — Manager/Assignee land here anyway (it's
+        // the post-login redirect target) but don't need it cluttering nav.
+        canSeeAll && { href: "/dashboard", label: "Overview", icon: "pulse" },
         canTasks && { href: "/tasks", label: "Task Board", icon: "board" },
         canTasks && { href: "/timeline", label: "Timeline", icon: "timeline" },
         // can("analytics:read") && { href: "/heatmap", label: "Heatmap", icon: "heatmap" },

@@ -332,7 +332,7 @@ export default async function TaskDetailPage({ params }) {
           </Card>
 
           {canSchedule && (
-            <Card title="Schedule" description="Admin-controlled dates.">
+            <Card title="Schedule" description="">
               <ScheduleForm task={task} />
             </Card>
           )}

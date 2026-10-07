@@ -8,40 +8,24 @@ import { assertPermission } from "@/lib/access";
 import { writeAudit } from "@/lib/audit";
 import { sendMail } from "@/lib/mail";
 import { baseUrl } from "@/lib/base-url";
-import { notifyUsers, notifyUser } from "@/lib/notifications";
+import { notifyUsers } from "@/lib/notifications";
 import { PROJECT_STATUSES } from "@/lib/pm-constants";
 import { teamIds as knownTeamIds } from "@/lib/teams";
 import { nextProjectNumber } from "@/lib/pm-ids";
 
 const oid = (id) => new ObjectId(String(id));
-const OWNER_ROLE_KEYS = ["manager", "admin", "super-admin"];
 
 const ProjectInput = z.object({
   name: z.string().min(2).max(120),
   client: z.string().max(120).optional().default(""),
   description: z.string().max(2000).optional().default(""),
   teamIds: z.array(z.string()).min(1, "Assign at least one team"),
-  ownerId: z.string().optional().default(""),
 });
 
 async function assertKnownTeams(ids) {
   const known = await knownTeamIds();
   const unknown = ids.filter((id) => !known.includes(id));
   return unknown.length ? "One or more selected teams no longer exist." : null;
-}
-
-/**
- * Owner must be a manager or admin. Falls back to the acting admin/manager
- * themselves when no owner is picked, or the pick turns out ineligible.
- */
-async function resolveOwner(ownerId, actor) {
-  if (!ownerId || !ObjectId.isValid(ownerId)) return oid(actor.id);
-  const { users, roles } = await collections();
-  const u = await users.findOne({ _id: oid(ownerId), status: "active" });
-  if (!u) return oid(actor.id);
-  const roleDocs = await roles.find({ _id: { $in: (u.roleIds || []).map(oid) } }).toArray();
-  const eligible = roleDocs.some((r) => OWNER_ROLE_KEYS.includes(r.key));
-  return eligible ? u._id : oid(actor.id);
 }
 
 /** Union of active member user docs across a set of team ids. */
@@ -82,29 +66,6 @@ async function announceMembers({ members, project, actorId }) {
   );
 }
 
-/** Tells a manager/admin they've been made the owner of a project. */
-async function announceOwner({ ownerId, project, actorId }) {
-  if (!ownerId || String(ownerId) === String(actorId)) return;
-  const link = `${await baseUrl()}/projects/${project.id}`;
-  await notifyUser({
-    userId: String(ownerId),
-    actorId,
-    type: "project.owner_assigned",
-    title: `You're now the owner of: ${project.name}`,
-    body: project.client ? `Client: ${project.client}` : "",
-    link,
-  });
-  const { users } = await collections();
-  const u = await users.findOne({ _id: oid(ownerId) });
-  if (!u) return;
-  await sendMail({
-    to: u.email,
-    subject: `You're now the owner of: ${project.name}`,
-    text: `You've been made the owner of the "${project.name}" project (${project.projectNumber}).\n\nView it: ${link}`,
-    html: `<p>You've been made the owner of <strong>${project.name}</strong> (${project.projectNumber}).</p><p><a href="${link}">Open the project</a>.</p>`,
-  });
-}
-
 export async function createProject(_prev, formData) {
   const actor = await assertPermission("project:create");
   const parsed = ProjectInput.safeParse({
@@ -112,19 +73,15 @@ export async function createProject(_prev, formData) {
     client: formData.get("client") || "",
     description: formData.get("description") || "",
     teamIds: formData.getAll("teamIds").map(String),
-    ownerId: formData.get("ownerId") || "",
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
   const teamErr = await assertKnownTeams(parsed.data.teamIds);
   if (teamErr) return { ok: false, error: teamErr };
-  const { name, client, description, teamIds, ownerId } = parsed.data;
+  const { name, client, description, teamIds } = parsed.data;
 
-  const [members, resolvedOwnerId] = await Promise.all([
-    resolveTeamMembers(teamIds),
-    resolveOwner(ownerId, actor),
-  ]);
+  const members = await resolveTeamMembers(teamIds);
   const { projects } = await collections();
   const now = new Date();
   const projectNumber = await nextProjectNumber(name);
@@ -136,7 +93,6 @@ export async function createProject(_prev, formData) {
     projectNumber,
     taskSeq: 0,
     status: "onboarding",
-    ownerId: resolvedOwnerId,
     createdBy: oid(actor.id),
     createdAt: now,
     updatedAt: now,
@@ -147,11 +103,10 @@ export async function createProject(_prev, formData) {
     action: "project.create",
     targetType: "project",
     targetId: res.insertedId,
-    meta: { name, projectNumber, teamIds, ownerId: String(resolvedOwnerId) },
+    meta: { name, projectNumber, teamIds },
   });
   const project = { id: String(res.insertedId), name, client, projectNumber };
   await announceMembers({ members, project, actorId: actor.id });
-  await announceOwner({ ownerId: resolvedOwnerId, project, actorId: actor.id });
   revalidatePath("/projects");
   return { ok: true, id: String(res.insertedId), redirect: `/projects/${res.insertedId}` };
 }
@@ -164,27 +119,24 @@ export async function updateProject(_prev, formData) {
     client: formData.get("client") || "",
     description: formData.get("description") || "",
     teamIds: formData.getAll("teamIds").map(String),
-    ownerId: formData.get("ownerId") || "",
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
   const teamErr = await assertKnownTeams(parsed.data.teamIds);
   if (teamErr) return { ok: false, error: teamErr };
-  const { name, client, description, teamIds, ownerId } = parsed.data;
+  const { name, client, description, teamIds } = parsed.data;
 
   const { projects } = await collections();
   const p = await projects.findOne({ _id: oid(id) });
   if (!p) return { ok: false, error: "Project not found." };
 
-  const [beforeMembers, afterMembers, resolvedOwnerId] = await Promise.all([
+  const [beforeMembers, afterMembers] = await Promise.all([
     resolveTeamMembers((p.teamIds || []).map(String)),
     resolveTeamMembers(teamIds),
-    resolveOwner(ownerId, actor),
   ]);
   const before = new Set(beforeMembers.map((u) => String(u._id)));
   const added = afterMembers.filter((u) => !before.has(String(u._id)));
-  const ownerChanged = String(p.ownerId || "") !== String(resolvedOwnerId);
 
   await projects.updateOne(
     { _id: p._id },
@@ -194,7 +146,6 @@ export async function updateProject(_prev, formData) {
         client,
         description,
         teamIds: teamIds.map(oid),
-        ownerId: resolvedOwnerId,
         updatedAt: new Date(),
       },
     },
@@ -204,11 +155,10 @@ export async function updateProject(_prev, formData) {
     action: "project.update",
     targetType: "project",
     targetId: p._id,
-    meta: { teamIds, ownerId: String(resolvedOwnerId) },
+    meta: { teamIds },
   });
   const project = { id, name, client, projectNumber: p.projectNumber };
   await announceMembers({ members: added, project, actorId: actor.id });
-  if (ownerChanged) await announceOwner({ ownerId: resolvedOwnerId, project, actorId: actor.id });
   revalidatePath("/projects");
   revalidatePath(`/projects/${id}`);
   return { ok: true };

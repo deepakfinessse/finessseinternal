@@ -17,15 +17,13 @@ export default async function TeamPage({ searchParams }) {
   // Assignee, Collaborator) only sees their own team's roster.
   const canSeeAll = user.can("task:read:all") || user.can("*");
 
-  const [allPeople, roles, everyone, myTeamIds, allTeams] = await Promise.all([
+  const [allPeople, roles, myTeamIds, allTeams] = await Promise.all([
     listUsers({ status: status === "all" ? undefined : status, q: q || undefined }),
     listRoles(),
-    listUsers({}),
     canSeeAll ? null : teamIdsForUser(user.id),
     canSeeAll ? null : listTeams(),
   ]);
   const roleName = (id) => roles.find((r) => r.id === id)?.name || "—";
-  const nameById = new Map(everyone.map((u) => [u.id, u.name || u.email]));
 
   let people = allPeople;
   if (!canSeeAll) {
@@ -88,7 +86,6 @@ export default async function TeamPage({ searchParams }) {
                 <tr className="border-b border-gray/20 text-left text-xs uppercase text-gray">
                   <th className="py-2 pr-3 font-semibold">Name</th>
                   <th className="py-2 pr-3 font-semibold">Roles</th>
-                  <th className="py-2 pr-3 font-semibold">Reports to</th>
                   <th className="py-2 pr-3 font-semibold">Status</th>
                   <th className="py-2 pr-3 font-semibold">Joined</th>
                 </tr>
@@ -106,9 +103,6 @@ export default async function TeamPage({ searchParams }) {
                       {p.roles.map((r) => r.name).join(", ") ||
                         p.roleIds.map(roleName).join(", ") ||
                         "—"}
-                    </td>
-                    <td className="py-2.5 pr-3 text-xs text-gray">
-                      {p.reportingManagerId ? nameById.get(p.reportingManagerId) || "—" : "—"}
                     </td>
                     <td className="py-2.5 pr-3">
                       <Badge tone={p.status}>{p.status}</Badge>

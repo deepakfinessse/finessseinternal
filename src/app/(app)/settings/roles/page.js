@@ -18,9 +18,9 @@ export default async function RolesPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-heading">Roles &amp; access control</h1>
-          <p className="text-sm text-gray">
+          {/* <p className="text-sm text-gray">
             Dynamic roles. Permissions span Super Admin governance down to Assignee views.
-          </p>
+          </p> */}
         </div>
         {user.can("role:create") && <LinkButton href="/settings/roles/new">New role</LinkButton>}
       </div>

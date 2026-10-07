@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission, getCurrentUser } from "@/lib/access";
-import { getUser, listUsers, listDirectReports, listRoles, listSessions } from "@/lib/data";
+import { getUser, listRoles, listSessions } from "@/lib/data";
 import { teamIdsForUser } from "@/lib/teams";
 import { listAudit } from "@/lib/audit";
 import { Card, Badge, EmptyState, fmtDateTime, relTime } from "@/components/ui";
 import {
   ProfileEditForm,
-  ReportingManagerForm,
   RoleAssignForm,
   StatusForm,
 } from "./profile-forms";
@@ -44,17 +43,13 @@ export default async function AssigneeProfilePage({ params }) {
 
   const canEdit = viewer.can("assignee:update") || me.id === person.id;
   const canAssignRoles = viewer.can("role:assign");
-  const canAssignManager = viewer.can("assignee:update");
   const canSuspend = viewer.can("assignee:suspend");
   const canDelete = viewer.can("assignee:delete");
 
-  const [roles, sessions, audit, people, directReports, manager] = await Promise.all([
+  const [roles, sessions, audit] = await Promise.all([
     listRoles(),
     viewer.can("session:read") ? listSessions({ userId: id }) : [],
     viewer.can("audit:read") ? listAudit({ targetType: "user", targetId: id, limit: 20 }) : [],
-    canAssignManager ? listUsers({ status: "active" }) : [],
-    listDirectReports(id),
-    person.reportingManagerId ? getUser(person.reportingManagerId) : null,
   ]);
 
   return (
@@ -135,37 +130,6 @@ export default async function AssigneeProfilePage({ params }) {
         </div>
 
         <div className="flex flex-col gap-6">
-          <Card title="Reporting manager" description="Who this person reports to, and who reports to them.">
-            <ReportingManagerForm person={person} people={people} canAssign={canAssignManager} />
-            {manager && (
-              <p className="mt-2 text-xs text-gray">
-                Currently reports to{" "}
-                <Link href={`/team/${manager.id}`} className="font-semibold hover:text-primary">
-                  {manager.name || manager.email}
-                </Link>
-                .
-              </p>
-            )}
-            <div className="mt-3 border-t border-gray/15 pt-3">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray">
-                Direct reports ({directReports.length})
-              </p>
-              {directReports.length === 0 ? (
-                <p className="text-sm text-gray">No one reports to this person.</p>
-              ) : (
-                <ul className="flex flex-col gap-1 text-sm">
-                  {directReports.map((r) => (
-                    <li key={r.id}>
-                      <Link href={`/team/${r.id}`} className="hover:text-primary">
-                        {r.name || r.email}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </Card>
-
           <Card title="Roles" description="Grants effective permissions.">
             <RoleAssignForm person={person} roles={roles} canAssign={canAssignRoles} />
           </Card>

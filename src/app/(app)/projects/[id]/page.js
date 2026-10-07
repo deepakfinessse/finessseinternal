@@ -2,10 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission, getCurrentUser } from "@/lib/access";
 import { getProject, listTasks } from "@/lib/pm-data";
-import { listEligibleOwners } from "@/lib/data";
 import { listTeams } from "@/lib/teams";
 import { Card, Badge, Stat, EmptyState, LinkButton, AvatarStack, fmtDate, fmtDateTime } from "@/components/ui";
 import { TeamDot, TaskStatusBadge, PriorityChip, OverdueTag, taskCode } from "@/components/pm-ui";
+import { fmtDuration } from "@/lib/pm-constants";
 import { ProjectForm, ProjectStatusForm, DeleteProjectButton } from "../project-forms";
 
 export async function generateMetadata({ params }) {
@@ -26,10 +26,9 @@ export default async function ProjectDetailPage({ params }) {
   const canCreateTask = user.can("task:create");
   const canApprove = user.can("task:approve");
 
-  const [tasks, teams, owners] = await Promise.all([
+  const [tasks, teams] = await Promise.all([
     listTasks(user, { projectId: id }),
     listTeams(),
-    canEdit ? listEligibleOwners() : [],
   ]);
 
   // Time log, project-wide: every hour entry across the project's tasks —
@@ -53,6 +52,25 @@ export default async function ProjectDetailPage({ params }) {
   }
   const hoursByPersonRows = [...hoursByPerson.values()].sort((a, b) => b.hours - a.hours);
 
+  // People card: this project's members grouped by which of its team(s)
+  // they're on, each with their live task count on this project.
+  const taskCountByAssignee = new Map();
+  for (const t of tasks) {
+    if (!t.assignee?.id) continue;
+    taskCountByAssignee.set(t.assignee.id, (taskCountByAssignee.get(t.assignee.id) || 0) + 1);
+  }
+  const teamsById = new Map(teams.map((t) => [t.id, t]));
+  const peopleByTeam = project.teamIds.map((tid, i) => {
+    const memberSet = new Set(teamsById.get(tid)?.memberIds || []);
+    return {
+      id: tid,
+      name: project.teamNames[i] || "Team",
+      people: project.members.filter((m) => memberSet.has(m.id)),
+    };
+  });
+  const groupedIds = new Set(peopleByTeam.flatMap((g) => g.people.map((m) => m.id)));
+  const ungroupedPeople = project.members.filter((m) => !groupedIds.has(m.id));
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -73,7 +91,6 @@ export default async function ProjectDetailPage({ params }) {
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-faint">
           {project.client && <span>Client: {project.client}</span>}
-          {project.owner && <span>· Owner: {project.owner.name || project.owner.email}</span>}
           {project.teamIds.length > 0 && <span>·</span>}
           {project.teamIds.map((id, i) => (
             <span key={id} className="inline-flex items-center gap-1.5">
@@ -142,27 +159,27 @@ export default async function ProjectDetailPage({ params }) {
         </div>
 
         <div className="flex flex-col gap-6">
-          {canEdit && (
+          {/* {canEdit && (
             <Card title="Lifecycle">
               <ProjectStatusForm project={project} />
             </Card>
-          )}
+          )} */}
 
           {canApprove && (
-            <Card title="Time log" description="Hours logged across this project's tasks.">
+            <Card title="Time log" description="">
               {timeLogEntries.length === 0 ? (
                 <p className="text-sm text-gray">No hours logged yet.</p>
               ) : (
                 <>
                   <div className="mb-3 flex items-baseline gap-1.5">
-                    <span className="text-[22px] font-semibold tabular-nums">{totalProjectHours}</span>
-                    <span className="text-[13px] text-dim">hour{totalProjectHours === 1 ? "" : "s"} total</span>
+                    <span className="text-[22px] font-semibold tabular-nums">{fmtDuration(Math.round(totalProjectHours * 60))}</span>
+                    <span className="text-[13px] text-dim">total</span>
                   </div>
                   <ul className="mb-3 flex flex-col gap-1.5 border-t border-gray/15 pt-3 text-sm">
                     {hoursByPersonRows.map((r) => (
                       <li key={r.user.id} className="flex items-center justify-between">
                         <span>{r.user.name || r.user.email || "Unknown"}</span>
-                        <span className="mono font-semibold tabular-nums">{r.hours}h</span>
+                        <span className="mono font-semibold tabular-nums">{fmtDuration(Math.round(r.hours * 60))}</span>
                       </li>
                     ))}
                   </ul>
@@ -173,7 +190,7 @@ export default async function ProjectDetailPage({ params }) {
                           <span className="font-medium text-foreground">
                             {l.taskCode} · {l.taskTitle}
                           </span>
-                          <span className="mono font-semibold">{l.hours}h</span>
+                          <span className="mono font-semibold">{fmtDuration(Math.round(l.hours * 60))}</span>
                         </div>
                         <div>
                           {l.loggedBy?.name || l.loggedBy?.email || "Someone"} · {fmtDateTime(l.loggedAt)}
@@ -191,19 +208,62 @@ export default async function ProjectDetailPage({ params }) {
             {project.members.length === 0 ? (
               <p className="text-sm text-gray">No one assigned yet.</p>
             ) : (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-4">
                 <AvatarStack people={project.members} size={22} />
-                <ul className="text-[13px] text-dim">
-                  {project.members.map((m) => (
-                    <li key={m.id}>{m.name || m.email}</li>
-                  ))}
-                </ul>
+                {peopleByTeam.map((grp) => (
+                  <div key={grp.id}>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray">
+                      {grp.name} ({grp.people.length})
+                    </p>
+                    {grp.people.length === 0 ? (
+                      <p className="text-[13px] text-dim">No members.</p>
+                    ) : (
+                      <ul className="flex flex-col gap-1 text-[13px]">
+                        {grp.people.map((m) => (
+                          <li key={m.id} className="flex items-center justify-between gap-2">
+                            <Link
+                              href={`/tasks?assignee=${m.id}&project=${project.id}`}
+                              className="min-w-0 truncate text-dim hover:text-primary"
+                            >
+                              {m.name || m.email}
+                            </Link>
+                            <span className="shrink-0 text-xs text-gray">
+                              {taskCountByAssignee.get(m.id) || 0} task
+                              {(taskCountByAssignee.get(m.id) || 0) === 1 ? "" : "s"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+                {ungroupedPeople.length > 0 && (
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray">Other</p>
+                    <ul className="flex flex-col gap-1 text-[13px]">
+                      {ungroupedPeople.map((m) => (
+                        <li key={m.id} className="flex items-center justify-between gap-2">
+                          <Link
+                            href={`/tasks?assignee=${m.id}&project=${project.id}`}
+                            className="min-w-0 truncate text-dim hover:text-primary"
+                          >
+                            {m.name || m.email}
+                          </Link>
+                          <span className="shrink-0 text-xs text-gray">
+                            {taskCountByAssignee.get(m.id) || 0} task
+                            {(taskCountByAssignee.get(m.id) || 0) === 1 ? "" : "s"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </Card>
           {canEdit && (
             <Card title="Edit project">
-              <ProjectForm project={project} teams={teams} owners={owners} />
+              <ProjectForm project={project} teams={teams} />
             </Card>
           )}
           {user.can("project:delete") && (

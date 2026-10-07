@@ -32,10 +32,10 @@ export default async function TeamsSettingsPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-heading">Teams</h1>
-        <p className="text-sm text-gray">
+        {/* <p className="text-sm text-gray">
           Teams replace divisions: a project picks the team(s) working on it, and tasks can only be
           assigned to people on those teams. Super-admin managed.
-        </p>
+        </p> */}
       </div>
 
       <Card title="Add a team">

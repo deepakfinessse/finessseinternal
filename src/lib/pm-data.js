@@ -48,7 +48,6 @@ export function serializeProject(p, taskCounts = {}, tmap = new Map()) {
     teamNames: teamIdStrs.map((id) => teamLabel(tmap, id)),
     memberIds: deriveMemberIds(teamIdStrs, tmap),
     status: p.status || "onboarding",
-    ownerId: p.ownerId ? String(p.ownerId) : null,
     createdAt: iso(p.createdAt || p._id.getTimestamp()),
     onboardedAt: iso(p.onboardedAt),
     taskCounts: {
@@ -202,12 +201,9 @@ export async function getProject(user, id) {
     endDate: { $lt: overdueCutoff() },
   });
   const base = serializeProject(p, counts, await teamsMap());
-  const [memberDocs, ownerDoc] = await Promise.all([
-    base.memberIds.length
-      ? users.find({ _id: { $in: base.memberIds.map(oid) } }).toArray()
-      : [],
-    base.ownerId ? users.findOne({ _id: oid(base.ownerId) }) : null,
-  ]);
+  const memberDocs = base.memberIds.length
+    ? await users.find({ _id: { $in: base.memberIds.map(oid) } }).toArray()
+    : [];
   return {
     ...base,
     members: memberDocs.map((u) => ({
@@ -216,9 +212,6 @@ export async function getProject(user, id) {
       email: u.email,
       image: u.image || null,
     })),
-    owner: ownerDoc
-      ? { id: String(ownerDoc._id), name: ownerDoc.name || "", email: ownerDoc.email, image: ownerDoc.image || null }
-      : null,
   };
 }
 

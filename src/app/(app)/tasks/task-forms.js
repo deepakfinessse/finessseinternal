@@ -167,7 +167,7 @@ export function CreateTaskForm({
         </Field>
       </div>
 
-      <EstimateFields required hint="Approximate time — the assignee can't change it" />
+      <EstimateFields required hint="" />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
@@ -183,7 +183,7 @@ export function CreateTaskForm({
             ))}
           </select>
         </Field>
-        <Field label="Collaborators (contributors)" hint="Ctrl/Cmd-click for multiple">
+        <Field label="Collaborators (contributors)" hint="">
           <select name="collaboratorIds" multiple className={`${inputClass} h-24`}>
             {teamPeople.map((u) => (
               <option key={u.id} value={u.id}>

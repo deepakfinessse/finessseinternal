@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { requirePermission } from "@/lib/access";
 import { listProjects, listTasks, listProjectOptions } from "@/lib/pm-data";
-import { listUsers, listEligibleOwners } from "@/lib/data";
+import { listUsers } from "@/lib/data";
 import { listTeams } from "@/lib/teams";
 import { resolveTaskFilters, filterListArgs, FILTER_COOKIE } from "@/lib/task-filters";
 import { PageHeader, Card, EmptyState, AvatarStack, fmtDate } from "@/components/ui";
@@ -134,7 +134,7 @@ export default async function ProjectsPage({ searchParams }) {
     filters.from ||
     filters.to;
 
-  const [allProjects, matchTasks, projectOpts, people, teams, owners] = await Promise.all([
+  const [allProjects, matchTasks, projectOpts, people, teams] = await Promise.all([
     listProjects({ user, teams: filters.team, q: filters.q || undefined }),
     taskDims
       ? listTasks(user, filterListArgs({ ...filters, team: [], project: [] }, user.id))
@@ -142,7 +142,6 @@ export default async function ProjectsPage({ searchParams }) {
     user.can("project:read") ? listProjectOptions({ user }) : [],
     user.can("assignee:read") ? listUsers({ status: "active" }) : [],
     listTeams(),
-    user.can("project:create") ? listEligibleOwners() : [],
   ]);
 
   let projects = allProjects;
@@ -174,7 +173,7 @@ export default async function ProjectsPage({ searchParams }) {
 
       {showForm && (
         <Card title="Onboard a project" description="Project & team setup.">
-          <ProjectForm teams={teams} owners={owners} />
+          <ProjectForm teams={teams} />
         </Card>
       )}
 

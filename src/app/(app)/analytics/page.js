@@ -71,8 +71,8 @@ export default async function AnalyticsPage() {
         <h1 className="text-2xl font-heading">Admin intelligence &amp; reporting</h1>
         <p className="text-sm text-gray">
           {canSeeAll
-            ? "Section 5 — the analytics engine over every project and task."
-            : "Section 5 — the analytics engine over your team's projects and tasks."}
+            ? "The analytics engine over every project and task."
+            : "The analytics engine over your team's projects and tasks."}
         </p>
       </div>
 
@@ -89,40 +89,67 @@ export default async function AnalyticsPage() {
         {assignees.length === 0 ? (
           <EmptyState title="No assigned tasks yet" />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-160 text-sm">
-              <thead>
-                <tr className="border-b border-gray/20 text-left text-xs uppercase text-gray">
-                  <th className="py-2 pr-3 font-semibold">Assignee</th>
-                  <th className="py-2 pr-3 font-semibold">Open</th>
-                  <th className="py-2 pr-3 font-semibold">In progress</th>
-                  <th className="py-2 pr-3 font-semibold">In review</th>
-                  <th className="py-2 pr-3 font-semibold">Blocked</th>
-                  <th className="py-2 pr-3 font-semibold">Completed</th>
-                  <th className="py-2 pr-3 font-semibold">Overdue</th>
-                  <th className="py-2 pr-3 font-semibold">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray/15">
-                {assignees.map((a) => (
-                  <tr key={a.user.id} className="hover:bg-gray/5">
-                    <td className="py-2 pr-3">
-                      <Link href={`/tasks?assignee=${a.user.id}`} className="font-semibold hover:text-primary">
-                        {a.user.name || a.user.email}
-                      </Link>
-                    </td>
-                    <td className="py-2 pr-3">{a.open}</td>
-                    <td className="py-2 pr-3">{a.in_progress}</td>
-                    <td className="py-2 pr-3">{a.in_review}</td>
-                    <td className="py-2 pr-3">{a.blocked}</td>
-                    <td className="py-2 pr-3">{a.completed}</td>
-                    <td className={`py-2 pr-3 ${a.overdue ? "font-semibold text-secondary" : ""}`}>{a.overdue}</td>
-                    <td className="py-2 pr-3 font-semibold">{a.total}</td>
+          <>
+            {/* Mobile: one card per assignee — a 7-column table has no room to breathe below md. */}
+            <div className="flex flex-col gap-2.5 md:hidden">
+              {assignees.map((a) => (
+                <div key={a.user.id} className="rounded-lg border border-gray/15 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <Link href={`/tasks?assignee=${a.user.id}`} className="font-semibold hover:text-primary">
+                      {a.user.name || a.user.email}
+                    </Link>
+                    <span className="shrink-0 text-sm font-semibold">{a.total} total</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-x-2 gap-y-1.5 text-xs">
+                    <div><span className="block text-gray">Open</span>{a.open}</div>
+                    <div><span className="block text-gray">In progress</span>{a.in_progress}</div>
+                    <div><span className="block text-gray">In review</span>{a.in_review}</div>
+                    <div><span className="block text-gray">Blocked</span>{a.blocked}</div>
+                    <div><span className="block text-gray">Completed</span>{a.completed}</div>
+                    <div>
+                      <span className="block text-gray">Overdue</span>
+                      <span className={a.overdue ? "font-semibold text-secondary" : ""}>{a.overdue}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-160 text-sm">
+                <thead>
+                  <tr className="border-b border-gray/20 text-left text-xs uppercase text-gray">
+                    <th className="py-2 pr-3 font-semibold">Assignee</th>
+                    <th className="py-2 pr-3 font-semibold">Open</th>
+                    <th className="py-2 pr-3 font-semibold">In progress</th>
+                    <th className="py-2 pr-3 font-semibold">In review</th>
+                    <th className="py-2 pr-3 font-semibold">Blocked</th>
+                    <th className="py-2 pr-3 font-semibold">Completed</th>
+                    <th className="py-2 pr-3 font-semibold">Overdue</th>
+                    <th className="py-2 pr-3 font-semibold">Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray/15">
+                  {assignees.map((a) => (
+                    <tr key={a.user.id} className="hover:bg-gray/5">
+                      <td className="py-2 pr-3">
+                        <Link href={`/tasks?assignee=${a.user.id}`} className="font-semibold hover:text-primary">
+                          {a.user.name || a.user.email}
+                        </Link>
+                      </td>
+                      <td className="py-2 pr-3">{a.open}</td>
+                      <td className="py-2 pr-3">{a.in_progress}</td>
+                      <td className="py-2 pr-3">{a.in_review}</td>
+                      <td className="py-2 pr-3">{a.blocked}</td>
+                      <td className="py-2 pr-3">{a.completed}</td>
+                      <td className={`py-2 pr-3 ${a.overdue ? "font-semibold text-secondary" : ""}`}>{a.overdue}</td>
+                      <td className="py-2 pr-3 font-semibold">{a.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </Card>
 
@@ -157,7 +184,44 @@ export default async function AnalyticsPage() {
         </Card>
 
         <Card title="Status & overdue heatmap" description="Tasks by team and state.">
-          <div className="overflow-x-auto">
+          {/* Mobile: one card per team with status chips — the matrix has no room below md. */}
+          <div className="flex flex-col gap-2.5 md:hidden">
+            {teams.map((t) => (
+              <div key={t.id} className="rounded-lg border border-gray/15 p-3">
+                <div className="mb-2 font-semibold">{t.name}</div>
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  {TASK_STATUSES.map((s) => {
+                    const n = heatmap[t.id]?.[s] || 0;
+                    return (
+                      <span
+                        key={s}
+                        className="rounded border border-gray/15 px-2 py-1 font-semibold"
+                        style={{
+                          backgroundColor: n
+                            ? `color-mix(in srgb, ${STATUS_COLOR[s]} ${Math.round((n / heatMax) * 70) + 12}%, transparent)`
+                            : "transparent",
+                        }}
+                      >
+                        {STATUS_LABEL[s]}: {n}
+                      </span>
+                    );
+                  })}
+                  <span
+                    className="rounded border border-gray/15 px-2 py-1 font-semibold text-warn"
+                    style={{
+                      backgroundColor: heatmap[t.id]?.overdue
+                        ? `color-mix(in srgb, ${OVERDUE_COLOR} ${Math.round(((heatmap[t.id].overdue) / heatMax) * 70) + 12}%, transparent)`
+                        : "transparent",
+                    }}
+                  >
+                    Overdue: {heatmap[t.id]?.overdue || 0}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-130 border-separate border-spacing-1 text-xs">
               <thead>
                 <tr>

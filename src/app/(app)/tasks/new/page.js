@@ -36,7 +36,7 @@ export default async function NewTaskPage({ searchParams }) {
           ← Tasks
         </Link>
         <h1 className="mt-2 text-2xl font-heading">Create task</h1>
-        <p className="text-sm text-gray">Section 3 — task entity &amp; data fields.</p>
+        {/* <p className="text-sm text-gray">Section 3 — task entity &amp; data fields.</p> */}
       </div>
 
       <Card>
