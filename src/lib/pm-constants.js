@@ -16,7 +16,7 @@ export const PRIORITY_KEYS = PRIORITIES.map((p) => p.key);
  * completed. Derived from completed tasks (not stored), so reopening a task
  * takes its XP back automatically.
  */
-export const XP_BY_PRIORITY = { low: 10, medium: 20, high: 40, urgent: 80 };
+export const XP_BY_PRIORITY = { low: 10, medium: 15, high: 25, urgent: 35 };
 
 export function taskXp(priority) {
   return XP_BY_PRIORITY[priority] ?? XP_BY_PRIORITY.medium;
@@ -86,6 +86,28 @@ export function isOverdue(task) {
  *  than now, so a same-day due date never reads as overdue. */
 export function overdueCutoff() {
   return new Date(Date.now() - DAY_MS);
+}
+
+/**
+ * Timeliness adjustment on top of the base priority XP, awarded alongside it
+ * when a task is approved as completed — same day-level grace as `isOverdue`:
+ * finished before the due day even arrived (+5), finished sometime during the
+ * due day itself (0), finished after the due day fully elapsed (-10). No due
+ * date on the task means no adjustment either way.
+ */
+export function onTimeXpAdjustment(task) {
+  if (!task?.endDate || !task?.completedAt) return 0;
+  const end = new Date(task.endDate).getTime();
+  const done = new Date(task.completedAt).getTime();
+  if (done >= end + DAY_MS) return -10;
+  if (done >= end) return 0;
+  return 5;
+}
+
+/** Total XP a completed task actually earned — base priority XP plus the
+ *  timeliness adjustment above. */
+export function taskXpEarned(task) {
+  return taskXp(task.priority) + onTimeXpAdjustment(task);
 }
 
 /* task update thread */

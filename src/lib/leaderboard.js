@@ -1,5 +1,5 @@
 import { collections } from "./db";
-import { XP_BY_PRIORITY, PRIORITY_KEYS } from "./pm-constants";
+import { XP_BY_PRIORITY, PRIORITY_KEYS, DAY_MS } from "./pm-constants";
 
 export const LEADERBOARD_PERIODS = [
   { key: "month", label: "This month" },
@@ -25,12 +25,29 @@ export async function getLeaderboard(period = "month") {
   const match = { status: "completed", assigneeId: { $ne: null } };
   if (since) match.completedAt = { $gte: since };
 
-  const xpExpr = {
+  const priorityXpExpr = {
     $switch: {
       branches: PRIORITY_KEYS.map((k) => ({ case: { $eq: ["$priority", k] }, then: XP_BY_PRIORITY[k] })),
       default: XP_BY_PRIORITY.medium,
     },
   };
+  // Same day-level grace as `isOverdue`/`onTimeXpAdjustment`: finished before
+  // the due day arrived (+5), during the due day itself (0), after it fully
+  // elapsed (-10). No due date on the task means no adjustment either way.
+  const onTimeXpExpr = {
+    $cond: [
+      { $eq: ["$endDate", null] },
+      0,
+      {
+        $cond: [
+          { $gte: ["$completedAt", { $add: ["$endDate", DAY_MS] }] },
+          -10,
+          { $cond: [{ $gte: ["$completedAt", "$endDate"] }, 0, 5] },
+        ],
+      },
+    ],
+  };
+  const xpExpr = { $add: [priorityXpExpr, onTimeXpExpr] };
 
   const rows = await tasks
     .aggregate([

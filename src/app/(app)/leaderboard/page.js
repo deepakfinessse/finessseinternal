@@ -168,6 +168,20 @@ export default async function LeaderboardPage({ searchParams }) {
                 </li>
               ))}
             </ul>
+            <ul className="mt-3 flex flex-col gap-2 border-t border-line pt-3 text-[13px]">
+              <li className="flex items-center justify-between">
+                <span>Finished before the due date</span>
+                <span className="mono font-semibold tabular-nums text-ok">+5 XP</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span>Finished on the due date</span>
+                <span className="mono font-semibold tabular-nums">0 XP</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span>Finished after the due date</span>
+                <span className="mono font-semibold tabular-nums text-warn">−10 XP</span>
+              </li>
+            </ul>
             <p className="mt-3 border-t border-line pt-3 text-[12px] text-faint">
               If a completed task is reopened, its XP is removed until it&apos;s completed again.
             </p>
