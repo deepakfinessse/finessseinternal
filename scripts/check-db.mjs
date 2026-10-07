@@ -10,14 +10,7 @@
 import { MongoClient } from "mongodb";
 import { SYSTEM_ROLES } from "../src/lib/rbac-catalog.js";
 
-const DEFAULT_TEAMS = [
-  { name: "Social Media" },
-  { name: "SEO" },
-  { name: "Web Development" },
-  { name: "Graphic Designing" },
-  { name: "ORM" },
-  { name: "Content Writing" },
-];
+const DEFAULT_TEAMS = [];
 
 const DEFAULT_ONBOARDING = {
   _id: "onboarding",

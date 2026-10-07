@@ -30,17 +30,9 @@ export async function collections() {
 /** Fixed id of the one team-wide channel — every active user is implicitly a member. */
 export const TEAM_GENERAL_ID = "team-general";
 
-// Seeded once into the `teams` collection on a fresh database (with no
-// members yet — super-admin assigns people afterward). After that, teams are
-// fully super-admin managed (see src/lib/teams.js).
-export const DEFAULT_TEAMS = [
-  { name: "Social Media" },
-  { name: "SEO" },
-  { name: "Web Development" },
-  { name: "Graphic Designing" },
-  { name: "ORM" },
-  { name: "Content Writing" },
-];
+// Seeded once into the `teams` collection on a fresh database. Left blank —
+// teams are fully super-admin managed from scratch (see src/lib/teams.js).
+export const DEFAULT_TEAMS = [];
 
 export const DEFAULT_ONBOARDING = {
   _id: "onboarding",
