@@ -167,6 +167,7 @@ export function NotificationBell() {
                       <span className="mt-0.5 block truncate text-[11px] text-faint">{n.body}</span>
                     )}
                     <span className="mono mt-1 block text-[9px] uppercase tracking-[0.1em] text-faint">
+                      {n.actorName ? `${n.actorName} · ` : ""}
                       {relTime(n.createdAt)}
                     </span>
                   </span>

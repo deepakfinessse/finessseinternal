@@ -21,6 +21,8 @@ import {
 
 const oid = (id) => new ObjectId(String(id));
 const bump = (paths) => paths.forEach((p) => revalidatePath(p));
+/** "Weboot · SPR001-02", or just the project name when the task has no number yet. */
+const projectLabel = (name, task) => (task?.taskNumber ? `${name} · ${task.taskNumber}` : name);
 
 /** A task's own team roster — who it can actually be assigned/collaborated to. */
 async function teamMemberIds(teamId) {
@@ -220,7 +222,7 @@ export async function createTask(_prev, formData) {
       actorId: actor.id,
       type: "task.assigned",
       title: `You were assigned: ${d.title}`,
-      body: project.name,
+      body: projectLabel(project.name, { taskNumber }),
       link: `/tasks/${res.insertedId}`,
     });
   }
@@ -277,7 +279,7 @@ export async function updateTask(_prev, formData) {
         actorId: actor.id,
         type: "task.collaborator_added",
         title: `You're now collaborating on: ${patch.title}`,
-        body: await projectNameFor(task.projectId),
+        body: projectLabel(await projectNameFor(task.projectId), task),
         link: `/tasks/${id}`,
       });
     }
@@ -367,7 +369,7 @@ export async function assignTask(_prev, formData) {
       actorId: actor.id,
       type: "task.assigned",
       title: `You were assigned: ${task.title}`,
-      body: await projectNameFor(task.projectId),
+      body: projectLabel(await projectNameFor(task.projectId), task),
       link: `/tasks/${id}`,
     });
   }
@@ -536,7 +538,7 @@ export async function submitForReview(_prev, formData) {
     actorId: me.id,
     type: "task.review_requested",
     title: `Ready for review: ${task.title}`,
-    body: withProject(projectName, note),
+    body: withProject(projectLabel(projectName, task), note),
     link: `/tasks/${id}`,
   });
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
@@ -599,7 +601,7 @@ export async function raiseBlocker(_prev, formData) {
     actorId: me.id,
     type: "task.blocked",
     title: `Blocked: ${task.title}`,
-    body: withProject(projectName, parsed.data.description),
+    body: withProject(projectLabel(projectName, task), parsed.data.description),
     link: `/tasks/${id}`,
   });
   // Blockers need someone who can unblock or approve around it — loop in
@@ -610,7 +612,7 @@ export async function raiseBlocker(_prev, formData) {
     actorId: me.id,
     type: "task.blocked",
     title: `Blocked: ${task.title}`,
-    body: withProject(projectName, parsed.data.description),
+    body: withProject(projectLabel(projectName, task), parsed.data.description),
     link: `/tasks/${id}`,
   });
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
@@ -682,7 +684,7 @@ export async function resolveBlocker(_prev, formData) {
     actorId: me.id,
     type: "task.unblocked",
     title: `Unblocked: ${task.title}`,
-    body: projectName,
+    body: projectLabel(projectName, task),
     link: `/tasks/${id}`,
   });
   bump(["/tasks", `/tasks/${id}`, `/projects/${task.projectId}`, "/analytics"]);
@@ -726,7 +728,7 @@ export async function approveTask(_prev, formData) {
       actorId: me.id,
       type: "task.approved",
       title: `Approved: ${task.title}`,
-      body: projectName,
+      body: projectLabel(projectName, task),
       link: `/tasks/${id}`,
     });
   }
@@ -767,7 +769,7 @@ export async function rejectTask(_prev, formData) {
       actorId: me.id,
       type: "task.rejected",
       title: `Revisions requested: ${task.title}`,
-      body: withProject(projectName, note),
+      body: withProject(projectLabel(projectName, task), note),
       link: `/tasks/${id}`,
     });
   }
@@ -801,7 +803,7 @@ export async function reopenTask(_prev, formData) {
       actorId: me.id,
       type: "task.reopened",
       title: `Reopened: ${task.title}`,
-      body: projectName,
+      body: projectLabel(projectName, task),
       link: `/tasks/${id}`,
     });
   }
@@ -844,7 +846,7 @@ export async function moveTask(_prev, formData) {
       actorId: me.id,
       type,
       title,
-      body: withProject(projectName, body),
+      body: withProject(projectLabel(projectName, task), body),
       link: `/tasks/${id}`,
     });
 
@@ -882,7 +884,7 @@ export async function moveTask(_prev, formData) {
     if (task.assigneeId) {
       await notifyUser({
         userId: task.assigneeId, actorId: me.id, type: "task.approved",
-        title: `Approved: ${task.title}`, body: projectName, link: `/tasks/${id}`,
+        title: `Approved: ${task.title}`, body: projectLabel(projectName, task), link: `/tasks/${id}`,
       });
     }
     return done("task.approve", { onTime: task.endDate ? now <= new Date(task.endDate) : true });
@@ -897,7 +899,7 @@ export async function moveTask(_prev, formData) {
     );
     if (task.assigneeId) {
       await notifyUser({
-        userId: task.assigneeId, actorId: me.id, type: "task.reopened", body: projectName,
+        userId: task.assigneeId, actorId: me.id, type: "task.reopened", body: projectLabel(projectName, task),
         title: `Reopened: ${task.title}`, link: `/tasks/${id}`,
       });
     }

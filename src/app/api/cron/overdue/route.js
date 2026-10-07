@@ -74,15 +74,15 @@ export async function GET(request) {
 
       if (recipients.size) {
         const link = `${origin}/tasks/${task._id}`;
-        const title = `Overdue: ${task.title}`;
         const projectName = project?.name || "the project";
         const numbered = task.taskNumber ? ` (${task.taskNumber})` : "";
+        const title = `Overdue: ${task.title}`;
 
         await notifyUsers({
           userIds: [...recipients.keys()],
           type: "task.overdue",
           title,
-          body: `${project?.name || "Project"} · was due ${fmtDate(task.endDate)}`,
+          body: `${projectName}${task.taskNumber ? ` · ${task.taskNumber}` : ""} · was due ${fmtDate(task.endDate)}`,
           link,
         });
 
@@ -90,7 +90,7 @@ export async function GET(request) {
           [...recipients.values()].map((u) =>
             sendMail({
               to: u.email,
-              subject: title,
+              subject: `${title}${numbered}`,
               text: `"${task.title}"${numbered} in ${projectName} was due ${fmtDate(task.endDate)} and is now overdue.\n\nOpen it: ${link}`,
               html: `<p><strong>${task.title}</strong>${numbered} in ${projectName} was due ${fmtDate(task.endDate)} and is now overdue.</p><p><a href="${link}">Open the task</a>.</p>`,
             }),

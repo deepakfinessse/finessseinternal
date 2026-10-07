@@ -4,7 +4,8 @@ import { permissionMatches } from "./rbac-catalog";
 
 const oid = (id) => (id instanceof ObjectId ? id : new ObjectId(String(id)));
 
-function serialize(n) {
+function serialize(n, actorMap = new Map()) {
+  const actor = n.actorId ? actorMap.get(String(n.actorId)) : null;
   return {
     id: String(n._id),
     type: n.type,
@@ -12,6 +13,7 @@ function serialize(n) {
     body: n.body || "",
     link: n.link || null,
     actorId: n.actorId ? String(n.actorId) : null,
+    actorName: actor ? actor.name || actor.email : null,
     read: !!n.read,
     createdAt: (n.createdAt || n._id.getTimestamp()).toISOString(),
   };
@@ -103,13 +105,16 @@ export async function notifyByPermission({ permission, teamId, actorId = null, .
 }
 
 export async function listNotifications(userId, { limit = 30 } = {}) {
-  const { notifications } = await collections();
+  const { notifications, users } = await collections();
   const docs = await notifications
     .find({ userId: oid(userId) })
     .sort({ createdAt: -1 })
     .limit(limit)
     .toArray();
-  return docs.map(serialize);
+  const actorIds = [...new Set(docs.map((d) => d.actorId).filter(Boolean).map(String))];
+  const actorDocs = actorIds.length ? await users.find({ _id: { $in: actorIds.map(oid) } }).toArray() : [];
+  const actorMap = new Map(actorDocs.map((u) => [String(u._id), u]));
+  return docs.map((d) => serialize(d, actorMap));
 }
 
 export async function unreadCount(userId) {

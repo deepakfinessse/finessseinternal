@@ -94,7 +94,7 @@ export function AttendanceWidget() {
           className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-line px-3 text-[13px] font-semibold text-dim transition-colors hover:border-line-strong hover:text-text disabled:opacity-50"
         >
           <Icon name="clock" size={14} />
-          Log in
+          Attendance in
         </button>
         {choosing && (
           <div
