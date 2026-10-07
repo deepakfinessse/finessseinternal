@@ -91,10 +91,10 @@ export function AttendanceWidget() {
           title="Clock in"
           aria-haspopup="menu"
           aria-expanded={choosing}
-          className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-line px-3 text-[13px] font-semibold text-dim transition-colors hover:border-line-strong hover:text-text disabled:opacity-50"
+          className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-line px-2.5 text-[13px] font-semibold text-dim transition-colors hover:border-line-strong hover:text-text disabled:opacity-50 sm:px-3"
         >
           <Icon name="clock" size={14} />
-          Attendance in
+          <span className="hidden sm:inline">Attendance in</span>
         </button>
         {choosing && (
           <div
@@ -136,15 +136,15 @@ export function AttendanceWidget() {
       : session.baseMs;
 
   return (
-    <div className="flex items-center gap-2 rounded-[10px] border border-line px-2.5 py-1.5">
+    <div className="flex items-center gap-1.5 rounded-[10px] border border-line px-2 py-1.5 sm:gap-2 sm:px-2.5">
       <span
         className={`h-2 w-2 shrink-0 rounded-full ${session.status === "running" ? "bg-ok" : "bg-caution"}`}
         title={session.status === "running" ? "Clocked in" : "Paused"}
       />
-      <span className="mono text-[12.5px] tabular-nums">{fmtElapsed(elapsedMs)}</span>
+      <span className="mono hidden text-[12.5px] tabular-nums sm:inline">{fmtElapsed(elapsedMs)}</span>
       {session.workMode && (
         <span
-          className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-semibold text-dim"
+          className="hidden rounded-md bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-semibold text-dim sm:inline"
           title={workModeLabel(session.workMode)}
         >
           {workModeLabel(session.workMode, { short: true })}
@@ -155,6 +155,7 @@ export function AttendanceWidget() {
           type="button"
           disabled={pending}
           onClick={() => act(pauseClock)}
+          title="Pause"
           className="text-[12px] font-medium text-dim transition-colors hover:text-text disabled:opacity-50"
         >
           Pause
@@ -164,6 +165,7 @@ export function AttendanceWidget() {
           type="button"
           disabled={pending}
           onClick={() => act(resumeClock)}
+          title="Resume"
           className="text-[12px] font-medium text-dim transition-colors hover:text-text disabled:opacity-50"
         >
           Resume
@@ -173,6 +175,7 @@ export function AttendanceWidget() {
         type="button"
         disabled={pending}
         onClick={() => act(clockOut)}
+        title="Log out"
         className="text-[12px] font-medium text-warn transition-opacity hover:opacity-80 disabled:opacity-50"
       >
         Log out

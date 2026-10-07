@@ -332,6 +332,15 @@ export function ChatShell({ me, initialConversations, initialMessages, initialCo
     } catch {}
   };
 
+  // Mobile only: return to the conversation list (both panes show side by
+  // side on md+, so this is never wired up there).
+  const backToList = () => {
+    setSelectedId(null);
+    try {
+      window.history.replaceState(null, "", "/chat");
+    } catch {}
+  };
+
   const startDm = async (userId) => {
     setPickerOpen(false);
     const fd = new FormData();
@@ -454,7 +463,7 @@ export function ChatShell({ me, initialConversations, initialMessages, initialCo
         </div>
       )}
 
-      <div className="flex w-64 shrink-0 flex-col border-r border-line bg-surface-2/30">
+      <div className={`w-full shrink-0 flex-col border-r border-line bg-surface-2/30 md:flex md:w-64 ${selected ? "hidden" : "flex"}`}>
         <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
           <span className="text-[12.5px] font-semibold">Conversations</span>
           <button
@@ -494,9 +503,9 @@ export function ChatShell({ me, initialConversations, initialMessages, initialCo
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className={`min-w-0 flex-1 flex-col md:flex ${selected ? "flex" : "hidden"}`}>
         {!selected ? (
-          <div className="flex flex-1 items-center justify-center p-6">
+          <div className="hidden flex-1 items-center justify-center p-6 md:flex">
             <EmptyState title="No conversation selected">
               Pick the Team channel or start a DM to begin.
             </EmptyState>
@@ -504,6 +513,14 @@ export function ChatShell({ me, initialConversations, initialMessages, initialCo
         ) : (
           <>
             <div className="flex items-center gap-2.5 border-b border-line px-4 py-2.5">
+              <button
+                type="button"
+                onClick={backToList}
+                aria-label="Back to conversations"
+                className="-ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-dim transition-colors hover:bg-surface-2 hover:text-text md:hidden"
+              >
+                <Icon name="chevron" size={18} className="rotate-180" />
+              </button>
               {selected.type === "channel" ? (
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-accent">
                   <Icon name="people" size={15} />

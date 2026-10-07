@@ -90,7 +90,7 @@ export default async function AnalyticsPage() {
           <EmptyState title="No assigned tasks yet" />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-160 text-sm">
               <thead>
                 <tr className="border-b border-gray/20 text-left text-xs uppercase text-gray">
                   <th className="py-2 pr-3 font-semibold">Assignee</th>
@@ -158,7 +158,7 @@ export default async function AnalyticsPage() {
 
         <Card title="Status & overdue heatmap" description="Tasks by team and state.">
           <div className="overflow-x-auto">
-            <table className="w-full border-separate border-spacing-1 text-xs">
+            <table className="w-full min-w-130 border-separate border-spacing-1 text-xs">
               <thead>
                 <tr>
                   <th className="text-left font-semibold text-gray">Team</th>
@@ -208,7 +208,7 @@ export default async function AnalyticsPage() {
 
       <Card title="Monthly SLA report" description="Completed tasks — on-time vs overdue history.">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-140 text-sm">
             <thead>
               <tr className="border-b border-gray/20 text-left text-xs uppercase text-gray">
                 <th className="py-2 pr-3 font-semibold">Month</th>

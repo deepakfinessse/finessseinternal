@@ -27,6 +27,7 @@ const P = {
   download: "M12 4v11M7 10l5 5 5-5M5 20h14",
   close: "M6 6l12 12M18 6L6 18",
   trophy: "M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4v3h-4z",
+  menu: "M4 7h16M4 12h16M4 17h16",
   dot: "M12 12h.01",
 };
 

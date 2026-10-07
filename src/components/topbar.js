@@ -9,6 +9,7 @@ import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notification-bell";
 import { ChatBadge } from "@/components/chat-badge";
 import { AttendanceWidget } from "@/components/attendance-widget";
+import { useMobileNav } from "@/components/mobile-nav";
 
 const TITLES = [
   [/^\/dashboard/, "Pulse"],
@@ -44,6 +45,7 @@ export function Topbar({ canCreateTask, canTrackAttendance }) {
   const pathname = usePathname();
   const inputRef = useRef(null);
   const [q, setQ] = useState("");
+  const { toggle } = useMobileNav();
 
   useEffect(() => {
     const onKey = (e) => {
@@ -64,6 +66,14 @@ export function Topbar({ canCreateTask, canTrackAttendance }) {
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-bg/85 px-4 backdrop-blur md:px-6">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label="Open menu"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-line text-dim transition-colors hover:border-line-strong hover:text-text md:hidden"
+      >
+        <Icon name="menu" size={17} />
+      </button>
       <Link href="/dashboard" className="shrink-0 md:hidden" aria-label="Home">
         <Logo className="h-5 w-auto text-text" />
       </Link>
@@ -71,7 +81,7 @@ export function Topbar({ canCreateTask, canTrackAttendance }) {
         {titleFor(pathname)}
       </h1>
 
-      <form onSubmit={submit} className="relative mx-auto w-full max-w-xl">
+      <form onSubmit={submit} className="relative mx-auto hidden w-full max-w-xl sm:block">
         <Icon
           name="search"
           size={15}
@@ -89,18 +99,26 @@ export function Topbar({ canCreateTask, canTrackAttendance }) {
           <Kbd>K</Kbd>
         </span>
       </form>
+      <Link
+        href="/tasks"
+        aria-label="Search tasks"
+        className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-line text-dim transition-colors hover:border-line-strong hover:text-text sm:hidden"
+      >
+        <Icon name="search" size={15} />
+      </Link>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         {canTrackAttendance && <AttendanceWidget />}
         <ChatBadge />
         <NotificationBell />
         {canCreateTask && (
           <Link
             href="/tasks/new"
-            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-action px-3 text-[13px] font-semibold text-action-text transition-opacity hover:opacity-90"
+            aria-label="New task"
+            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-action px-2.5 text-[13px] font-semibold text-action-text transition-opacity hover:opacity-90 sm:px-3"
           >
             <Icon name="plus" size={15} strokeWidth={2} />
-            New
+            <span className="hidden sm:inline">New</span>
           </Link>
         )}
       </div>
