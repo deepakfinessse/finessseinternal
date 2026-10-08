@@ -5,7 +5,7 @@ import { listUsers } from "@/lib/data";
 import { nowMs } from "@/lib/pm-constants";
 import { PageHeader, Card, EmptyState, Avatar, Field, inputClass } from "@/components/ui";
 import { Icon } from "@/components/icons";
-import { workModeLabel } from "@/lib/attendance-constants";
+import { workModeLabel, ATTENDANCE_TIMEZONE, istDateKey } from "@/lib/attendance-constants";
 
 export const metadata = { title: "Attendance · Finessse" };
 
@@ -34,7 +34,11 @@ function fmtHours(ms) {
 
 function fmtTime(iso) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: ATTENDANCE_TIMEZONE,
+  });
 }
 
 // `day` is a "YYYY-MM-DD" bucket key — parse as UTC so the local timezone
@@ -54,8 +58,8 @@ export default async function AttendancePage({ searchParams }) {
   const sp = await searchParams;
   const canSeeAll = user.can("attendance:read:all");
 
-  const today = new Date(nowMs()).toISOString().slice(0, 10);
-  const defaultFrom = new Date(nowMs() - 13 * 86400000).toISOString().slice(0, 10);
+  const today = istDateKey(nowMs());
+  const defaultFrom = istDateKey(nowMs() - 13 * 86400000);
   const from = sp.from || defaultFrom;
   const to = sp.to || today;
   const personId = sp.user || "";
@@ -63,7 +67,7 @@ export default async function AttendancePage({ searchParams }) {
   const [mySessions, allSessions, people] = await Promise.all([
     listMySessions(user.id),
     canSeeAll
-      ? listAllSessions({ from: `${from}T00:00:00`, to: `${to}T23:59:59.999`, userId: personId || undefined })
+      ? listAllSessions({ from: `${from}T00:00:00+05:30`, to: `${to}T23:59:59.999+05:30`, userId: personId || undefined })
       : [],
     canSeeAll ? listUsers({ status: "active" }) : [],
   ]);

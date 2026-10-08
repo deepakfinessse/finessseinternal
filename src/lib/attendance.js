@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { collections } from "./db";
+import { istDateKey } from "./attendance-constants";
 
 const oid = (id) => (id instanceof ObjectId ? id : new ObjectId(String(id)));
 const iso = (d) => (d ? new Date(d).toISOString() : null);
@@ -76,7 +77,7 @@ export async function listAllSessions({ from, to, userId } = {}) {
 export function summarizeByDay(sessions) {
   const byKey = new Map();
   for (const s of sessions) {
-    const day = s.startedAt.slice(0, 10);
+    const day = istDateKey(s.startedAt);
     const key = `${s.user.id}:${day}`;
     if (!byKey.has(key)) {
       byKey.set(key, {

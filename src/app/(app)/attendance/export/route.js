@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/access";
 import { listAllSessions, summarizeByDay } from "@/lib/attendance";
-import { workModeLabel } from "@/lib/attendance-constants";
+import { workModeLabel, ATTENDANCE_TIMEZONE } from "@/lib/attendance-constants";
 
 function csvCell(v) {
   const s = String(v ?? "");
@@ -8,7 +8,7 @@ function csvCell(v) {
 }
 
 function fmtDateTime(iso) {
-  return iso ? new Date(iso).toLocaleString() : "";
+  return iso ? new Date(iso).toLocaleString("en-IN", { timeZone: ATTENDANCE_TIMEZONE }) : "";
 }
 
 export async function GET(request) {
@@ -23,8 +23,8 @@ export async function GET(request) {
   const userId = searchParams.get("user") || undefined;
 
   const sessions = await listAllSessions({
-    from: from ? `${from}T00:00:00` : undefined,
-    to: to ? `${to}T23:59:59.999` : undefined,
+    from: from ? `${from}T00:00:00+05:30` : undefined,
+    to: to ? `${to}T23:59:59.999+05:30` : undefined,
     userId,
   });
   const rows = summarizeByDay(sessions);
